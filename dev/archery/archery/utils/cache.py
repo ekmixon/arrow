@@ -44,8 +44,7 @@ class Cache:
 
     def delete(self, key):
         """ Remove a key (and the file) from the cache. """
-        path = self.get(key)
-        if path:
+        if path := self.get(key):
             path.unlink()
 
     def get_or_insert(self, key, create):

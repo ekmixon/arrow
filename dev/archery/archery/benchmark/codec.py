@@ -90,8 +90,7 @@ class BenchmarkComparatorCodec:
     def encode(bc):
         comparator = bc.formatted
 
-        suite_name = bc.suite_name
-        if suite_name:
+        if suite_name := bc.suite_name:
             comparator["suite"] = suite_name
 
         return comparator

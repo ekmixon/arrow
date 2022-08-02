@@ -197,9 +197,7 @@ def partitioning(schema=None, field_names=None, flavor=None,
             if isinstance(field_names, list):
                 return DirectoryPartitioning.discover(field_names)
             else:
-                raise ValueError(
-                    "Expected list of field names, got {}".format(
-                        type(field_names)))
+                raise ValueError(f"Expected list of field names, got {type(field_names)}")
         else:
             raise ValueError(
                 "For the default directory flavor, need to specify "
@@ -208,14 +206,11 @@ def partitioning(schema=None, field_names=None, flavor=None,
         if field_names is not None:
             raise ValueError("Cannot specify 'field_names' for flavor 'hive'")
         elif schema is not None:
-            if isinstance(schema, pa.Schema):
-                if dictionaries == 'infer':
-                    return HivePartitioning.discover(schema=schema)
-                return HivePartitioning(schema, dictionaries)
-            else:
-                raise ValueError(
-                    "Expected Schema for 'schema', got {}".format(
-                        type(schema)))
+            if not isinstance(schema, pa.Schema):
+                raise ValueError(f"Expected Schema for 'schema', got {type(schema)}")
+            if dictionaries == 'infer':
+                return HivePartitioning.discover(schema=schema)
+            return HivePartitioning(schema, dictionaries)
         else:
             return HivePartitioning.discover()
     else:
@@ -234,11 +229,8 @@ def _ensure_partitioning(scheme):
         scheme = partitioning(flavor=scheme)
     elif isinstance(scheme, list):
         scheme = partitioning(field_names=scheme)
-    elif isinstance(scheme, (Partitioning, PartitioningFactory)):
-        pass
-    else:
-        ValueError("Expected Partitioning or PartitioningFactory, got {}"
-                   .format(type(scheme)))
+    elif not isinstance(scheme, (Partitioning, PartitioningFactory)):
+        ValueError(f"Expected Partitioning or PartitioningFactory, got {type(scheme)}")
     return scheme
 
 
@@ -252,7 +244,7 @@ def _ensure_format(obj):
     elif obj == "csv":
         return CsvFileFormat()
     else:
-        raise ValueError("format '{}' is not supported".format(obj))
+        raise ValueError(f"format '{obj}' is not supported")
 
 
 def _ensure_multiple_sources(paths, filesystem=None):
@@ -317,16 +309,14 @@ def _ensure_multiple_sources(paths, filesystem=None):
                 raise FileNotFoundError(info.path)
             elif file_type == FileType.Directory:
                 raise IsADirectoryError(
-                    'Path {} points to a directory, but only file paths are '
-                    'supported. To construct a nested or union dataset pass '
-                    'a list of dataset objects instead.'.format(info.path)
+                    f'Path {info.path} points to a directory, but only file paths are supported. To construct a nested or union dataset pass a list of dataset objects instead.'
                 )
+
             else:
                 raise IOError(
-                    'Path {} exists but its type is unknown (could be a '
-                    'special file such as a Unix socket or character device, '
-                    'or Windows NUL / CON / ...)'.format(info.path)
+                    f'Path {info.path} exists but its type is unknown (could be a special file such as a Unix socket or character device, or Windows NUL / CON / ...)'
                 )
+
 
     return filesystem, paths
 
@@ -662,19 +652,17 @@ or tables, iterable of batches, RecordBatchReader, or URI
                  for elem in source):
             return _in_memory_dataset(source, **kwargs)
         else:
-            unique_types = set(type(elem).__name__ for elem in source)
-            type_names = ', '.join('{}'.format(t) for t in unique_types)
+            unique_types = {type(elem).__name__ for elem in source}
+            type_names = ', '.join(f'{t}' for t in unique_types)
             raise TypeError(
-                'Expected a list of path-like or dataset objects, or a list '
-                'of batches or tables. The given list contains the following '
-                'types: {}'.format(type_names)
+                f'Expected a list of path-like or dataset objects, or a list of batches or tables. The given list contains the following types: {type_names}'
             )
+
     elif isinstance(source, (pa.RecordBatch, pa.Table)):
         return _in_memory_dataset(source, **kwargs)
     else:
         raise TypeError(
-            'Expected a path-like, list of path-likes or a list of Datasets '
-            'instead of the given type: {}'.format(type(source).__name__)
+            f'Expected a path-like, list of path-likes or a list of Datasets instead of the given type: {type(source).__name__}'
         )
 
 
@@ -778,9 +766,10 @@ def write_dataset(data, base_dir, basename_template=None, format=None,
         file_options = format.make_write_options()
 
     if format != file_options.format:
-        raise TypeError("Supplied FileWriteOptions have format {}, "
-                        "which doesn't match supplied FileFormat {}".format(
-                            format, file_options))
+        raise TypeError(
+            f"Supplied FileWriteOptions have format {format}, which doesn't match supplied FileFormat {file_options}"
+        )
+
 
     if basename_template is None:
         basename_template = "part-{i}." + format.default_extname
@@ -794,13 +783,11 @@ def write_dataset(data, base_dir, basename_template=None, format=None,
 
     if isinstance(data, Dataset):
         scanner = data.scanner(use_threads=use_threads, use_async=use_async)
-    else:
-        # scanner was passed directly by the user, in which case a schema
-        # cannot be passed
-        if schema is not None:
-            raise ValueError("Cannot specify a schema when writing a Scanner")
+    elif schema is None:
         scanner = data
 
+    else:
+        raise ValueError("Cannot specify a schema when writing a Scanner")
     _filesystemdataset_write(
         scanner, base_dir, basename_template, filesystem, partitioning,
         file_options, max_partitions, file_visitor

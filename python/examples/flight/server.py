@@ -38,7 +38,7 @@ class FlightServer(pyarrow.flight.FlightServerBase):
         self.tls_certificates = tls_certificates
 
     @classmethod
-    def descriptor_to_key(self, descriptor):
+    def descriptor_to_key(cls, descriptor):
         return (descriptor.descriptor_type.value, descriptor.command,
                 tuple(descriptor.path or tuple()))
 
@@ -66,7 +66,7 @@ class FlightServer(pyarrow.flight.FlightServerBase):
         for key, table in self.flights.items():
             if key[1] is not None:
                 descriptor = \
-                    pyarrow.flight.FlightDescriptor.for_command(key[1])
+                        pyarrow.flight.FlightDescriptor.for_command(key[1])
             else:
                 descriptor = pyarrow.flight.FlightDescriptor.for_path(*key[2])
 
@@ -98,11 +98,10 @@ class FlightServer(pyarrow.flight.FlightServerBase):
         ]
 
     def do_action(self, context, action):
+        if action.type == "healthcheck":
+            return
         if action.type == "clear":
-            raise NotImplementedError(
-                "{} is not implemented.".format(action.type))
-        elif action.type == "healthcheck":
-            pass
+            raise NotImplementedError(f"{action.type} is not implemented.")
         elif action.type == "shutdown":
             yield pyarrow.flight.Result(pyarrow.py_buffer(b'Shutdown!'))
             # Shut down on background thread to avoid blocking current
@@ -141,7 +140,7 @@ def main():
             tls_private_key = key_file.read()
         tls_certificates.append((tls_cert_chain, tls_private_key))
 
-    location = "{}://{}:{}".format(scheme, args.host, args.port)
+    location = f"{scheme}://{args.host}:{args.port}"
 
     server = FlightServer(args.host, location,
                           tls_certificates=tls_certificates,

@@ -448,11 +448,11 @@ def test_buffer_equals():
     def eq(a, b):
         assert a.equals(b)
         assert a == b
-        assert not (a != b)
+        assert a == b
 
     def ne(a, b):
         assert not a.equals(b)
-        assert not (a == b)
+        assert a != b
         assert a != b
 
     b1 = b'some data!'
@@ -528,9 +528,8 @@ def test_buffer_slicing():
         buf[::2]
 
     n = len(buf)
-    for start in range(-n * 2, n * 2):
-        for stop in range(-n * 2, n * 2):
-            assert buf[start:stop].to_pybytes() == buf.to_pybytes()[start:stop]
+    for start, stop in itertools.product(range(-n * 2, n * 2), range(-n * 2, n * 2)):
+        assert buf[start:stop].to_pybytes() == buf.to_pybytes()[start:stop]
 
 
 def test_buffer_hashing():
@@ -596,7 +595,7 @@ def test_allocate_buffer_resizable():
 ])
 def test_compress_decompress(compression):
     if not Codec.is_available(compression):
-        pytest.skip("{} support is not built".format(compression))
+        pytest.skip(f"{compression} support is not built")
 
     INPUT_SIZE = 10000
     test_data = (np.random.randint(0, 255, size=INPUT_SIZE)
@@ -636,7 +635,7 @@ def test_compress_decompress(compression):
 ])
 def test_compression_level(compression):
     if not Codec.is_available(compression):
-        pytest.skip("{} support is not built".format(compression))
+        pytest.skip(f"{compression} support is not built")
 
     # These codecs do not support a compression level
     no_level = ['snappy', 'lz4']
@@ -740,7 +739,7 @@ def test_memory_output_stream():
     f = pa.BufferOutputStream()
 
     K = 1000
-    for i in range(K):
+    for _ in range(K):
         f.write(val)
 
     buf = f.getvalue()
@@ -808,7 +807,7 @@ def test_mock_output_stream():
     f2 = pa.BufferOutputStream()
 
     K = 1000
-    for i in range(K):
+    for _ in range(K):
         f1.write(val)
         f2.write(val)
 
@@ -896,9 +895,13 @@ def test_memory_map_retain_buffer_reference(sample_disk_data):
 
     cases = []
     with pa.memory_map(path, 'rb') as f:
-        cases.append((f.read_buffer(100), data[:100]))
-        cases.append((f.read_buffer(100), data[100:200]))
-        cases.append((f.read_buffer(100), data[200:300]))
+        cases.extend(
+            (
+                (f.read_buffer(100), data[:100]),
+                (f.read_buffer(100), data[100:200]),
+                (f.read_buffer(100), data[200:300]),
+            )
+        )
 
     # Call gc.collect() for good measure
     gc.collect()
@@ -1128,10 +1131,9 @@ def test_native_file_raises_ValueError_after_close(tmpdir):
                ('writable', ()),
                ('seekable', ())]
 
-    for f in files:
-        for method, args in methods:
-            with pytest.raises(ValueError):
-                getattr(f, method)(*args)
+    for f, (method, args) in itertools.product(files, methods):
+        with pytest.raises(ValueError):
+            getattr(f, method)(*args)
 
 
 def test_native_file_TextIOWrapper(tmpdir):
@@ -1402,7 +1404,7 @@ def test_unknown_compression_raises():
 ])
 def test_compressed_roundtrip(compression):
     if not Codec.is_available(compression):
-        pytest.skip("{} support is not built".format(compression))
+        pytest.skip(f"{compression} support is not built")
 
     data = b"some test data\n" * 10 + b"eof\n"
     raw = pa.BufferOutputStream()
@@ -1423,7 +1425,7 @@ def test_compressed_roundtrip(compression):
 )
 def test_compressed_recordbatch_stream(compression):
     if not Codec.is_available(compression):
-        pytest.skip("{} support is not built".format(compression))
+        pytest.skip(f"{compression} support is not built")
 
     # ARROW-4836: roundtrip a RecordBatch through a compressed stream
     table = pa.Table.from_arrays([pa.array([1, 2, 3, 4, 5])], ['a'])

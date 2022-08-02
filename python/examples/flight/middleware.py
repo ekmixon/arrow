@@ -100,20 +100,17 @@ class FlightServer(flight.FlightServerBase):
         ]
 
     def do_action(self, context, action):
-        trace_middleware = context.get_middleware("trace")
-        if trace_middleware:
+        if trace_middleware := context.get_middleware("trace"):
             TraceContext.set_trace_id(trace_middleware.trace_id)
-        if action.type == "get-trace-id":
-            if self.delegate:
-                for result in self.delegate.do_action(action):
-                    yield result
-            else:
-                trace_id = TraceContext.current_trace_id().encode("utf-8")
-                print("Returning trace ID:", trace_id)
-                buf = pa.py_buffer(trace_id)
-                yield pa.flight.Result(buf)
-        else:
+        if action.type != "get-trace-id":
             raise KeyError(f"Unknown action {action.type!r}")
+        if self.delegate:
+            yield from self.delegate.do_action(action)
+        else:
+            trace_id = TraceContext.current_trace_id().encode("utf-8")
+            print("Returning trace ID:", trace_id)
+            buf = pa.py_buffer(trace_id)
+            yield pa.flight.Result(buf)
 
 
 def main():

@@ -57,9 +57,9 @@ def docker(ctx, src, dry_run):
     config_path = src.path / 'docker-compose.yml'
     if not config_path.exists():
         raise click.ClickException(
-            "Docker compose configuration cannot be found in directory {}, "
-            "try to pass the arrow source directory explicitly.".format(src)
+            f"Docker compose configuration cannot be found in directory {src}, try to pass the arrow source directory explicitly."
         )
+
 
     # take the docker-compose parameters like PYTHON, PANDAS, UBUNTU from the
     # environment variables to keep the usage similar to docker-compose
@@ -120,9 +120,9 @@ def docker_build(obj, image, *, force_pull, using_docker_cli,
                       pull_parents=force_pull)
     except UndefinedImage as e:
         raise click.ClickException(
-            "There is no service/image defined in docker-compose.yml with "
-            "name: {}".format(str(e))
+            f"There is no service/image defined in docker-compose.yml with name: {str(e)}"
         )
+
     except RuntimeError as e:
         raise click.ClickException(str(e))
 
@@ -226,9 +226,9 @@ def docker_run(obj, image, command, *, env, user, force_pull, force_build,
         )
     except UndefinedImage as e:
         raise click.ClickException(
-            "There is no service/image defined in docker-compose.yml with "
-            "name: {}".format(str(e))
+            f"There is no service/image defined in docker-compose.yml with name: {str(e)}"
         )
+
     except RuntimeError as e:
         raise click.ClickException(str(e))
 

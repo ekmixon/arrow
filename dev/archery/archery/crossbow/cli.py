@@ -145,11 +145,10 @@ def submit(obj, tasks, groups, params, job_prefix, config_path, arrow_version,
     queue.put(job, prefix=job_prefix)
 
     if no_push:
-        click.echo('Branches and commits created but not pushed: `{}`'
-                   .format(job.branch))
+        click.echo(f'Branches and commits created but not pushed: `{job.branch}`')
     else:
         queue.push()
-        click.echo('Pushed job identifier is: `{}`'.format(job.branch))
+        click.echo(f'Pushed job identifier is: `{job.branch}`')
 
 
 @crossbow.command()

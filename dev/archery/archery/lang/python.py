@@ -157,10 +157,7 @@ class NumpyDoc:
         def _load_obj(obj):
             # By default it expects a qualname and import the object, but we
             # have already loaded object after the API traversal.
-            if isinstance(obj, str):
-                return orig_load_obj(obj)
-            else:
-                return obj
+            return orig_load_obj(obj) if isinstance(obj, str) else obj
 
         def signature(obj):
             # inspect.signature tries to parse __text_signature__ if other

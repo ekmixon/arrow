@@ -270,7 +270,7 @@ def test_previous_and_next_release(fake_jira):
 def test_release_issues(fake_jira):
     # major release issues
     r = Release.from_jira("1.0.0", jira=fake_jira)
-    assert r.issues.keys() == set([
+    assert r.issues.keys() == {
         "ARROW-300",
         "ARROW-4427",
         "ARROW-5035",
@@ -278,29 +278,31 @@ def test_release_issues(fake_jira):
         "ARROW-8472",
         "ARROW-8471",
         "ARROW-8974",
-        "ARROW-8973"
-    ])
+        "ARROW-8973",
+    }
+
     # minor release issues
     r = Release.from_jira("0.17.0", jira=fake_jira)
-    assert r.issues.keys() == set([
+    assert r.issues.keys() == {
         "ARROW-2882",
         "ARROW-2587",
         "ARROW-2447",
         "ARROW-2255",
         "ARROW-1907",
         "ARROW-1636",
-    ])
+    }
+
     # patch release issues
     r = Release.from_jira("1.0.1", jira=fake_jira)
-    assert r.issues.keys() == set([
+    assert r.issues.keys() == {
         "ARROW-9684",
         "ARROW-9667",
         "ARROW-9659",
         "ARROW-9644",
         "ARROW-9643",
         "ARROW-9609",
-        "ARROW-9606"
-    ])
+        "ARROW-9606",
+    }
 
 
 @pytest.mark.parametrize(('version', 'ncommits'), [

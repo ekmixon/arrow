@@ -51,7 +51,7 @@ def _traverse(typ, counter):
         # Union types not supported, just skip the indexes
         for dtype in typ:
             next(counter)
-            for sub_c in _traverse(dtype, counter):
+            for _ in _traverse(dtype, counter):
                 pass
 
 

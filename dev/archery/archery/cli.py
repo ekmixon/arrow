@@ -397,7 +397,7 @@ def benchmark_list(ctx, rev_or_path, src, preserve, output, cmake_extras,
     """ List benchmark suite.
     """
     with tmpdir(preserve=preserve) as root:
-        logger.debug("Running benchmark {}".format(rev_or_path))
+        logger.debug(f"Running benchmark {rev_or_path}")
 
         if language == "cpp":
             conf = CppBenchmarkRunner.default_configuration(
@@ -468,7 +468,7 @@ def benchmark_run(ctx, rev_or_path, src, preserve, output, cmake_extras,
     archery benchmark run --output=run.json
     """
     with tmpdir(preserve=preserve) as root:
-        logger.debug("Running benchmark {}".format(rev_or_path))
+        logger.debug(f"Running benchmark {rev_or_path}")
 
         if language == "cpp":
             conf = CppBenchmarkRunner.default_configuration(
@@ -589,8 +589,7 @@ def benchmark_diff(ctx, src, preserve, output, language, cmake_extras,
     archery --quiet benchmark diff WORKSPACE run.json > result.json
     """
     with tmpdir(preserve=preserve) as root:
-        logger.debug("Comparing {} (contender) with {} (baseline)"
-                     .format(contender, baseline))
+        logger.debug(f"Comparing {contender} (contender) with {baseline} (baseline)")
 
         if language == "cpp":
             conf = CppBenchmarkRunner.default_configuration(
@@ -679,9 +678,7 @@ def _format_comparisons_with_pandas(comparisons_json, no_counters,
 # Integration testing
 
 def _set_default(opt, default):
-    if opt is None:
-        return default
-    return opt
+    return default if opt is None else opt
 
 
 @archery.command(short_help="Execute protocol and Flight integration tests")
@@ -736,7 +733,7 @@ def integration(with_all=False, random_seed=12345, **args):
 
     enabled_languages = 0
     for lang in languages:
-        param = 'with_{}'.format(lang)
+        param = f'with_{lang}'
         if with_all:
             args[param] = with_all
 
@@ -750,9 +747,9 @@ def integration(with_all=False, random_seed=12345, **args):
             if e.errno != errno.EEXIST:
                 raise
         write_js_test_json(gen_path)
+    elif enabled_languages == 0:
+        raise Exception("Must enable at least 1 language to test")
     else:
-        if enabled_languages == 0:
-            raise Exception("Must enable at least 1 language to test")
         run_all_tests(**args)
 
 
@@ -863,7 +860,7 @@ def release_changelog_regenerate(obj):
         if not version.released:
             continue
         release = Release.from_jira(version, jira=jira, repo=repo)
-        click.echo('Querying changelog for version: {}'.format(version))
+        click.echo(f'Querying changelog for version: {version}')
         changelogs.append(release.changelog())
 
     click.echo('Rendering new CHANGELOG.md file...')
@@ -896,11 +893,9 @@ def release_cherry_pick(obj, version, dry_run, recreate):
         release.cherry_pick_commits(recreate_branch=recreate)
         click.echo('Executed the following commands:\n')
 
-    click.echo(
-        'git checkout {} -b {}'.format(release.previous.tag, release.branch)
-    )
+    click.echo(f'git checkout {release.previous.tag} -b {release.branch}')
     for commit in release.commits_to_pick():
-        click.echo('git cherry-pick {}'.format(commit.hexsha))
+        click.echo(f'git cherry-pick {commit.hexsha}')
 
 
 @archery.group("linking")

@@ -66,8 +66,7 @@ class IntegrationRunner(object):
         self.match = match
 
         if self.match is not None:
-            print("-- Only running tests with {} in their name"
-                  .format(self.match))
+            print(f"-- Only running tests with {self.match} in their name")
             self.json_files = [json_file for json_file in self.json_files
                                if self.match in json_file.name]
 
@@ -115,7 +114,7 @@ class IntegrationRunner(object):
         golds = [jf for jf in os.listdir(gold_dir) if jf.endswith(SUFFIX)]
         for json_path in golds:
             name = json_path[json_path.index('_')+1: -len(SUFFIX)]
-            base_name = prefix + "_" + name + ".gold.json"
+            base_name = f"{prefix}_{name}.gold.json"
             out_path = os.path.join(self.temp_dir, base_name)
             with gzip.open(os.path.join(gold_dir, json_path)) as i:
                 with open(out_path, "wb") as out:
@@ -128,7 +127,7 @@ class IntegrationRunner(object):
                 skip = set()
             if name == 'union' and prefix == '0.17.1':
                 skip.add("Java")
-            if prefix == '1.0.0-bigendian' or prefix == '1.0.0-littleendian':
+            if prefix in ['1.0.0-bigendian', '1.0.0-littleendian']:
                 skip.add("Go")
                 skip.add("Java")
                 skip.add("JS")
@@ -224,12 +223,18 @@ class IntegrationRunner(object):
         file_id = guid()[:8]
         name = os.path.splitext(os.path.basename(json_path))[0]
 
-        producer_file_path = os.path.join(self.temp_dir, file_id + '_' +
-                                          name + '.json_as_file')
-        producer_stream_path = os.path.join(self.temp_dir, file_id + '_' +
-                                            name + '.producer_file_as_stream')
-        consumer_file_path = os.path.join(self.temp_dir, file_id + '_' +
-                                          name + '.consumer_stream_as_file')
+        producer_file_path = os.path.join(
+            self.temp_dir, ((f'{file_id}_' + name) + '.json_as_file')
+        )
+
+        producer_stream_path = os.path.join(
+            self.temp_dir, ((f'{file_id}_' + name) + '.producer_file_as_stream')
+        )
+
+        consumer_file_path = os.path.join(
+            self.temp_dir, ((f'{file_id}_' + name) + '.consumer_stream_as_file')
+        )
+
 
         log('-- Creating binary inputs')
         producer.json_to_file(json_path, producer_file_path)
@@ -249,17 +254,23 @@ class IntegrationRunner(object):
         # Validate the file
         log('-- Validating file')
         producer_file_path = os.path.join(
-            gold_dir, "generated_" + test_case.name + ".arrow_file")
+            gold_dir, f"generated_{test_case.name}.arrow_file"
+        )
+
         consumer.validate(json_path, producer_file_path)
 
         log('-- Validating stream')
         consumer_stream_path = os.path.join(
-            gold_dir, "generated_" + test_case.name + ".stream")
+            gold_dir, f"generated_{test_case.name}.stream"
+        )
+
         file_id = guid()[:8]
         name = os.path.splitext(os.path.basename(json_path))[0]
 
-        consumer_file_path = os.path.join(self.temp_dir, file_id + '_' +
-                                          name + '.consumer_stream_as_file')
+        consumer_file_path = os.path.join(
+            self.temp_dir, ((f'{file_id}_' + name) + '.consumer_stream_as_file')
+        )
+
 
         consumer.stream_to_file(consumer_stream_path, consumer_file_path)
         consumer.validate(json_path, consumer_file_path)

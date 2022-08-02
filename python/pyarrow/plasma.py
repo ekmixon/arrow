@@ -53,7 +53,7 @@ def build_plasma_tensorflow_op():
     global tf_plasma_op
     try:
         import tensorflow as tf
-        print("TensorFlow version: " + tf.__version__)
+        print(f"TensorFlow version: {tf.__version__}")
     except ImportError:
         pass
     else:
@@ -64,16 +64,26 @@ def build_plasma_tensorflow_op():
         tf_cflags = tf.sysconfig.get_compile_flags()
         if sys.platform == 'darwin':
             tf_cflags = ["-undefined", "dynamic_lookup"] + tf_cflags
-        cmd = ["g++", "-std=c++11", "-g", "-shared", cc_path,
-               "-o", so_path, "-DNDEBUG", "-I" + pa.get_include()]
-        cmd += ["-L" + dir for dir in pa.get_library_dirs()]
+        cmd = [
+            "g++",
+            "-std=c++11",
+            "-g",
+            "-shared",
+            cc_path,
+            "-o",
+            so_path,
+            "-DNDEBUG",
+            f"-I{pa.get_include()}",
+        ]
+
+        cmd += [f"-L{dir}" for dir in pa.get_library_dirs()]
         cmd += ["-lplasma", "-larrow_python", "-larrow", "-fPIC"]
         cmd += tf_cflags
         cmd += tf.sysconfig.get_link_flags()
         cmd += ["-O2"]
         if tf.test.is_built_with_cuda():
             cmd += ["-DGOOGLE_CUDA"]
-        print("Running command " + str(cmd))
+        print(f"Running command {cmd}")
         subprocess.check_call(cmd)
         tf_plasma_op = tf.load_op_library(TF_PLASMA_OP_PATH)
 

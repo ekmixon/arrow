@@ -155,7 +155,7 @@ class ProxyHandler(FileSystemHandler):
         return NotImplemented
 
     def get_type_name(self):
-        return "proxy::" + self._fs.type_name
+        return f"proxy::{self._fs.type_name}"
 
     def normalize_path(self, path):
         return self._fs.normalize_path(path)
@@ -271,9 +271,10 @@ def s3fs(request, s3_connection, s3_server):
     fs = S3FileSystem(
         access_key=access_key,
         secret_key=secret_key,
-        endpoint_override='{}:{}'.format(host, port),
-        scheme='http'
+        endpoint_override=f'{host}:{port}',
+        scheme='http',
     )
+
     fs.create_dir(bucket)
 
     yield dict(
@@ -355,8 +356,9 @@ def py_fsspec_s3fs(request, s3_connection, s3_server):
     fs = s3fs.S3FileSystem(
         key=access_key,
         secret=secret_key,
-        client_kwargs=dict(endpoint_url='http://{}:{}'.format(host, port))
+        client_kwargs=dict(endpoint_url=f'http://{host}:{port}'),
     )
+
     fs = PyFileSystem(FSSpecHandler(fs))
     fs.create_dir(bucket)
 
@@ -681,7 +683,7 @@ def test_get_file_info_with_selector(fs, pathfn):
             # s3fs only lists directories if they are not empty, but depending
             # on the s3fs/fsspec version combo, it includes the base_dir
             # (https://github.com/dask/s3fs/issues/393)
-            assert (len(infos) == 4) or (len(infos) == 5)
+            assert len(infos) in {4, 5}
         else:
             assert len(infos) == 5
 
@@ -697,7 +699,7 @@ def test_get_file_info_with_selector(fs, pathfn):
                 # s3fs can include base dir, see above
                 assert info.type == FileType.Directory
             else:
-                raise ValueError('unexpected path {}'.format(info.path))
+                raise ValueError(f'unexpected path {info.path}')
             check_mtime_or_absent(info)
 
         # non-recursive selector -> not selecting the nested file_c
@@ -709,7 +711,7 @@ def test_get_file_info_with_selector(fs, pathfn):
             # + for s3fs 0.5.2 all directories are dropped because of buggy
             # side-effect of previous find() call
             # (https://github.com/dask/s3fs/issues/410)
-            assert (len(infos) == 3) or (len(infos) == 2)
+            assert len(infos) in {3, 2}
         else:
             assert len(infos) == 4
 
@@ -1240,7 +1242,7 @@ def test_hdfs_options(hdfs_connection):
         host, port, 'me', replication + 1, buffer_size, default_block_size
     ))
     hdfs5 = HadoopFileSystem(host, port)
-    hdfs6 = HadoopFileSystem.from_uri('hdfs://{}:{}'.format(host, port))
+    hdfs6 = HadoopFileSystem.from_uri(f'hdfs://{host}:{port}')
     hdfs7 = HadoopFileSystem(host, port, user='localuser')
     hdfs8 = HadoopFileSystem(host, port, user='localuser',
                              kerb_ticket="cache_path")
@@ -1279,9 +1281,7 @@ def test_hdfs_options(hdfs_connection):
     hdfs = HadoopFileSystem(host, port, user=user)
     assert hdfs.get_file_info(FileSelector('/'))
 
-    hdfs = HadoopFileSystem.from_uri(
-        "hdfs://{}:{}/?user={}".format(host, port, user)
-    )
+    hdfs = HadoopFileSystem.from_uri(f"hdfs://{host}:{port}/?user={user}")
     assert hdfs.get_file_info(FileSelector('/'))
 
 
@@ -1322,8 +1322,8 @@ def test_filesystem_from_uri_s3(s3_connection, s3_server):
 
     host, port, access_key, secret_key = s3_connection
 
-    uri = "s3://{}:{}@mybucket/foo/bar?scheme=http&endpoint_override={}:{}" \
-        .format(access_key, secret_key, host, port)
+    uri = f"s3://{access_key}:{secret_key}@mybucket/foo/bar?scheme=http&endpoint_override={host}:{port}"
+
 
     fs, path = FileSystem.from_uri(uri)
     assert isinstance(fs, S3FileSystem)

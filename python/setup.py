@@ -146,11 +146,8 @@ class build_ext(_build_ext):
 
         self.cmake_cxxflags = os.environ.get('PYARROW_CXXFLAGS', '')
 
-        if sys.platform == 'win32':
-            # Cannot do debug builds in Windows unless Python itself is a debug
-            # build
-            if not hasattr(sys, 'gettotalrefcount'):
-                self.build_type = 'release'
+        if sys.platform == 'win32' and not hasattr(sys, 'gettotalrefcount'):
+            self.build_type = 'release'
 
         self.with_s3 = strtobool(
             os.environ.get('PYARROW_WITH_S3', '0'))
@@ -229,20 +226,22 @@ class build_ext(_build_ext):
         with changed_dir(build_temp):
             # Detect if we built elsewhere
             if os.path.isfile('CMakeCache.txt'):
-                cachefile = open('CMakeCache.txt', 'r')
-                cachedir = re.search('CMAKE_CACHEFILE_DIR:INTERNAL=(.*)',
-                                     cachefile.read()).group(1)
-                cachefile.close()
+                with open('CMakeCache.txt', 'r') as cachefile:
+                    cachedir = re.search(
+                        'CMAKE_CACHEFILE_DIR:INTERNAL=(.*)', cachefile.read()
+                    )[1]
+
                 if (cachedir != build_temp):
                     return
 
             static_lib_option = ''
 
             cmake_options = [
-                '-DPYTHON_EXECUTABLE=%s' % sys.executable,
-                '-DPython3_EXECUTABLE=%s' % sys.executable,
+                f'-DPYTHON_EXECUTABLE={sys.executable}',
+                f'-DPython3_EXECUTABLE={sys.executable}',
                 static_lib_option,
             ]
+
 
             def append_cmake_bool(value, varname):
                 cmake_options.append('-D{0}={1}'.format(
@@ -308,16 +307,9 @@ class build_ext(_build_ext):
                 build_lib = saved_cwd
 
             # Move the libraries to the place expected by the Python build
-            try:
+            with contextlib.suppress(OSError):
                 os.makedirs(pjoin(build_lib, 'pyarrow'))
-            except OSError:
-                pass
-
-            if sys.platform == 'win32':
-                build_prefix = ''
-            else:
-                build_prefix = self.build_type
-
+            build_prefix = '' if sys.platform == 'win32' else self.build_type
             if self.bundle_arrow_cpp or self.bundle_arrow_cpp_headers:
                 print('Bundling includes: ' + pjoin(build_prefix, 'include'))
                 if os.path.exists(pjoin(build_lib, 'pyarrow', 'include')):
@@ -354,9 +346,11 @@ class build_ext(_build_ext):
                 self._found_names.append(name)
 
                 if os.path.exists(self.get_ext_built_api_header(name)):
-                    shutil.move(self.get_ext_built_api_header(name),
-                                pjoin(os.path.dirname(ext_path),
-                                      name + '_api.h'))
+                    shutil.move(
+                        self.get_ext_built_api_header(name),
+                        pjoin(os.path.dirname(ext_path), f'{name}_api.h'),
+                    )
+
 
             if self.bundle_arrow_cpp:
                 self._bundle_arrow_cpp(build_prefix, build_lib)
@@ -389,9 +383,11 @@ class build_ext(_build_ext):
             move_shared_libs(build_prefix, build_lib, "parquet")
         if not self.with_static_boost and self.bundle_boost:
             move_shared_libs(
-                build_prefix, build_lib,
-                "{}_regex".format(self.boost_namespace),
-                implib_required=False)
+                build_prefix,
+                build_lib,
+                f"{self.boost_namespace}_regex",
+                implib_required=False,
+            )
 
     def _bundle_cython_cpp(self, name, lib_path):
         cpp_generated_path = self.get_ext_generated_cpp_source(name)
@@ -426,9 +422,7 @@ class build_ext(_build_ext):
             return True
         if name == '_cuda' and not self.with_cuda:
             return True
-        if name == 'gandiva' and not self.with_gandiva:
-            return True
-        return False
+        return name == 'gandiva' and not self.with_gandiva
 
     def _get_build_dir(self):
         # Get the package directory from build_py
@@ -441,30 +435,28 @@ class build_ext(_build_ext):
         return pjoin(self._get_build_dir(), filename)
 
     def get_ext_generated_cpp_source(self, name):
-        if sys.platform == 'win32':
-            head, tail = os.path.split(name)
-            return pjoin(head, tail + ".cpp")
-        else:
-            return pjoin(name + ".cpp")
+        if sys.platform != 'win32':
+            return pjoin(f"{name}.cpp")
+        head, tail = os.path.split(name)
+        return pjoin(head, f"{tail}.cpp")
 
     def get_ext_built_api_header(self, name):
-        if sys.platform == 'win32':
-            head, tail = os.path.split(name)
-            return pjoin(head, tail + "_api.h")
-        else:
-            return pjoin(name + "_api.h")
+        if sys.platform != 'win32':
+            return pjoin(f"{name}_api.h")
+        head, tail = os.path.split(name)
+        return pjoin(head, f"{tail}_api.h")
 
     def get_ext_built(self, name):
-        if sys.platform == 'win32':
-            head, tail = os.path.split(name)
+        if sys.platform != 'win32':
+            return pjoin(self.build_type, name + ext_suffix)
+        head, tail = os.path.split(name)
             # Visual Studio seems to differ from other generators in
             # where it places output files.
-            if self.cmake_generator.startswith('Visual Studio'):
-                return pjoin(head, self.build_type, tail + ext_suffix)
-            else:
-                return pjoin(head, tail + ext_suffix)
-        else:
-            return pjoin(self.build_type, name + ext_suffix)
+        return (
+            pjoin(head, self.build_type, tail + ext_suffix)
+            if self.cmake_generator.startswith('Visual Studio')
+            else pjoin(head, tail + ext_suffix)
+        )
 
     def get_names(self):
         return self._found_names
@@ -480,9 +472,9 @@ def move_shared_libs(build_prefix, build_lib, lib_name,
                      implib_required=True):
     if sys.platform == 'win32':
         # Move all .dll and .lib files
-        libs = [lib_name + '.dll']
+        libs = [f'{lib_name}.dll']
         if implib_required:
-            libs.append(lib_name + '.lib')
+            libs.append(f'{lib_name}.lib')
         for filename in libs:
             shutil.move(pjoin(build_prefix, filename),
                         pjoin(build_lib, 'pyarrow', filename))
@@ -492,11 +484,7 @@ def move_shared_libs(build_prefix, build_lib, lib_name,
 
 def _move_shared_libs_unix(build_prefix, build_lib, lib_name):
     shared_library_prefix = 'lib'
-    if sys.platform == 'darwin':
-        shared_library_suffix = '.dylib'
-    else:
-        shared_library_suffix = '.so'
-
+    shared_library_suffix = '.dylib' if sys.platform == 'darwin' else '.so'
     lib_filename = (shared_library_prefix + lib_name +
                     shared_library_suffix)
     # Also copy libraries with ABI/SO version suffix
@@ -505,11 +493,16 @@ def _move_shared_libs_unix(build_prefix, build_lib, lib_name):
                        ".*" + shared_library_suffix[1:])
         libs = glob.glob(pjoin(build_prefix, lib_pattern))
     else:
-        libs = glob.glob(pjoin(build_prefix, lib_filename) + '*')
+        libs = glob.glob(f'{pjoin(build_prefix, lib_filename)}*')
 
     if not libs:
-        raise Exception('Could not find library:' + lib_filename +
-                        ' in ' + build_prefix)
+        raise Exception(
+            (
+                (f'Could not find library:{lib_filename}' + ' in ')
+                + build_prefix
+            )
+        )
+
 
     # Longest suffix library should be copied, all others ignored and can be
     # symlinked later after the library has been installed
@@ -548,10 +541,10 @@ def parse_git(root, **kwargs):
 def guess_next_dev_version(version):
     if version.exact:
         return version.format_with('{tag}')
-    else:
-        def guess_next_version(tag_version):
-            return default_version.replace('-SNAPSHOT', '')
-        return version.format_next_version(guess_next_version)
+    def guess_next_version(tag_version):
+        return default_version.replace('-SNAPSHOT', '')
+
+    return version.format_next_version(guess_next_version)
 
 
 with open('README.md') as f:
@@ -559,7 +552,7 @@ with open('README.md') as f:
 
 
 class BinaryDistribution(Distribution):
-    def has_ext_modules(foo):
+    def has_ext_modules(self):
         return True
 
 

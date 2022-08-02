@@ -192,17 +192,14 @@ def create_config(directory, yml_content, env_content=None):
     if env_content is not None:
         with env_path.open('w') as fp:
             for k, v in env_content.items():
-                fp.write("{}={}\n".format(k, v))
+                fp.write(f"{k}={v}\n")
 
     return config_path
 
 
 def format_run(args):
     cmd = ["run", "--rm"]
-    if isinstance(args, str):
-        return " ".join(cmd + [args])
-    else:
-        return cmd + args
+    return " ".join(cmd + [args]) if isinstance(args, str) else cmd + args
 
 
 @pytest.fixture
@@ -473,11 +470,21 @@ def test_compose_push(arrow_compose_path):
     expected_calls = [
         mock.call(["docker", "login", "-u", "user", "-p", "pass"], check=True),
     ]
-    for image in ["conda-cpp", "conda-python", "conda-python-pandas"]:
-        expected_calls.append(
-            mock.call(["docker-compose", "--file", str(compose.config.path),
-                       "push", image], check=True, env=expected_env)
+    expected_calls.extend(
+        mock.call(
+            [
+                "docker-compose",
+                "--file",
+                str(compose.config.path),
+                "push",
+                image,
+            ],
+            check=True,
+            env=expected_env,
         )
+        for image in ["conda-cpp", "conda-python", "conda-python-pandas"]
+    )
+
     with assert_subprocess_calls(expected_calls):
         compose.push('conda-python-pandas', user='user', password='pass')
 

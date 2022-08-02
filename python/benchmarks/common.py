@@ -151,7 +151,7 @@ class BuiltinsGenerator(object):
         an entry being None.
         """
         # Make sure we get Python bools, not np.bool_
-        data = [bool(x >= 0.5) for x in self.rnd.uniform(0.0, 1.0, n)]
+        data = [x >= 0.5 for x in self.rnd.uniform(0.0, 1.0, n)]
         assert len(data) == n
         self.sprinkle_nones(data, none_prob)
         return data
@@ -174,7 +174,7 @@ class BuiltinsGenerator(object):
         Generate a list of generic Python objects with *none_prob*
         probability of an entry being None.
         """
-        data = [object() for i in range(n)]
+        data = [object() for _ in range(n)]
         self.sprinkle_nones(data, none_prob)
         return data
 
@@ -189,12 +189,14 @@ class BuiltinsGenerator(object):
         base_size = 10000
         base = random_factory(base_size + max_size)
         data = []
-        for i in range(n):
+        for _ in range(n):
             off = self.rnd.randint(base_size)
-            if min_size == max_size:
-                size = min_size
-            else:
-                size = self.rnd.randint(min_size, max_size + 1)
+            size = (
+                min_size
+                if min_size == max_size
+                else self.rnd.randint(min_size, max_size + 1)
+            )
+
             data.append(base[off:off + size])
         self.sprinkle_nones(data, none_prob)
         assert len(data) == n

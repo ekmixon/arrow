@@ -23,7 +23,7 @@ DEBUG = False
 # FIXME: merge the code that calls fix_filename().
 def fix_filename(file_name):
   for path_to_cut in sys.argv[1:]:
-    file_name = re.sub('.*' + path_to_cut, '', file_name)
+    file_name = re.sub(f'.*{path_to_cut}', '', file_name)
   file_name = re.sub('.*asan_[a-z_]*.cc:[0-9]*', '_asan_rtl_', file_name)
   file_name = re.sub('.*crtstuff.c:0', '???:0', file_name)
   return file_name
@@ -74,7 +74,7 @@ class LLVMSymbolizer(Symbolizer):
       return None
     result = []
     try:
-      symbolizer_input = '%s %s' % (binary, offset)
+      symbolizer_input = f'{binary} {offset}'
       if DEBUG:
         print(symbolizer_input)
       self.pipe.stdin.write(symbolizer_input)
@@ -88,8 +88,7 @@ class LLVMSymbolizer(Symbolizer):
         if (not function_name.startswith('??') and
             not file_name.startswith('??')):
           # Append only valid frames.
-          result.append('%s in %s %s' % (addr, function_name,
-                                         file_name))
+          result.append(f'{addr} in {function_name} {file_name}')
     except Exception:
       result = []
     if not result:
@@ -131,7 +130,7 @@ class Addr2LineSymbolizer(Symbolizer):
       function_name = ''
       file_name = ''
     file_name = fix_filename(file_name)
-    return ['%s in %s %s' % (addr, function_name, file_name)]
+    return [f'{addr} in {function_name} {file_name}']
 
 
 class DarwinSymbolizer(Symbolizer):
@@ -139,10 +138,7 @@ class DarwinSymbolizer(Symbolizer):
     super(DarwinSymbolizer, self).__init__()
     self.binary = binary
     # Guess which arch we're running. 10 = len('0x') + 8 hex digits.
-    if len(addr) > 10:
-      self.arch = 'x86_64'
-    else:
-      self.arch = 'i386'
+    self.arch = 'x86_64' if len(addr) > 10 else 'i386'
     self.vmaddr = None
     self.pipe = None
 
@@ -152,7 +148,7 @@ class DarwinSymbolizer(Symbolizer):
 
   def open_atos(self):
     if DEBUG:
-      print('atos -o %s -arch %s' % (self.binary, self.arch))
+      print(f'atos -o {self.binary} -arch {self.arch}')
     cmdline = ['atos', '-o', self.binary, '-arch', self.arch]
     self.pipe = subprocess.Popen(cmdline,
                                  stdin=subprocess.PIPE,
@@ -172,13 +168,12 @@ class DarwinSymbolizer(Symbolizer):
     match = re.match('^(.*) \(in (.*)\) \((.*:\d*)\)$', atos_line)
     if DEBUG:
       print('atos_line: {0}'.format(atos_line))
-    if match:
-      function_name = match.group(1)
-      function_name = re.sub('\(.*?\)', '', function_name)
-      file_name = fix_filename(match.group(3))
-      return ['%s in %s %s' % (addr, function_name, file_name)]
-    else:
-      return ['%s in %s' % (addr, atos_line)]
+    if not match:
+      return [f'{addr} in {atos_line}']
+    function_name = match[1]
+    function_name = re.sub('\(.*?\)', '', function_name)
+    file_name = fix_filename(match[3])
+    return [f'{addr} in {function_name} {file_name}']
 
 
 # Chain several symbolizers so that if one symbolizer fails, we fall back
@@ -192,8 +187,7 @@ class ChainSymbolizer(Symbolizer):
     """Overrides Symbolizer.symbolize."""
     for symbolizer in self.symbolizer_list:
       if symbolizer:
-        result = symbolizer.symbolize(addr, binary, offset)
-        if result:
+        if result := symbolizer.symbolize(addr, binary, offset):
           return result
     return None
 
@@ -202,8 +196,7 @@ class ChainSymbolizer(Symbolizer):
 
 
 def BreakpadSymbolizerFactory(binary):
-  suffix = os.getenv('BREAKPAD_SUFFIX')
-  if suffix:
+  if suffix := os.getenv('BREAKPAD_SUFFIX'):
     filename = binary + suffix
     if os.access(filename, os.F_OK):
       return BreakpadSymbolizer(filename)
@@ -246,7 +239,7 @@ class BreakpadSymbolizer(Symbolizer):
         pass
       elif fragments[0] == 'FUNC':
         cur_function_addr = int(fragments[1], 16)
-        if not cur_function_addr in self.symbols.keys():
+        if cur_function_addr not in self.symbols.keys():
           self.symbols[cur_function_addr] = ' '.join(fragments[4:])
       else:
         # Line starting with an address.
@@ -272,16 +265,12 @@ class BreakpadSymbolizer(Symbolizer):
     sym_id, size, line_no, file_no = self.addresses[key]
     symbol = self.symbols[sym_id]
     filename = self.files[file_no]
-    if addr < key + size:
-      return symbol, filename, line_no
-    else:
-      return None
+    return (symbol, filename, line_no) if addr < key + size else None
 
   def symbolize(self, addr, binary, offset):
     if self.binary != binary:
       return None
-    res = self.get_sym_file_line(int(offset, 16))
-    if res:
+    if res := self.get_sym_file_line(int(offset, 16)):
       function_name, file_name, line_no = res
       result = ['%s in %s %s:%d' % (
           addr, function_name, file_name, line_no)]
@@ -306,7 +295,7 @@ class SymbolizationLoop(object):
     # Use the chain of symbolizers:
     # Breakpad symbolizer -> LLVM symbolizer -> addr2line/atos
     # (fall back to next symbolizer if the previous one fails).
-    if not binary in symbolizers:
+    if binary not in symbolizers:
       symbolizers[binary] = ChainSymbolizer(
           [BreakpadSymbolizerFactory(binary), self.llvm_symbolizer])
     result = symbolizers[binary].symbolize(addr, binary, offset)
@@ -324,7 +313,7 @@ class SymbolizationLoop(object):
       print(self.current_line)
     else:
       for symbolized_frame in symbolized_lines:
-        print('    #' + str(self.frame_no) + ' ' + symbolized_frame.rstrip())
+        print(f'    #{str(self.frame_no)} {symbolized_frame.rstrip()}')
         self.frame_no += 1
 
   def process_stdin(self):
@@ -357,9 +346,8 @@ class SymbolizationLoop(object):
       if self.binary_name_filter:
         binary = self.binary_name_filter(binary)
       symbolized_line = self.symbolize_address(addr, binary, offset)
-      if not symbolized_line:
-        if original_binary != binary:
-          symbolized_line = self.symbolize_address(addr, binary, offset)
+      if not symbolized_line and original_binary != binary:
+        symbolized_line = self.symbolize_address(addr, binary, offset)
       self.print_symbolized_lines(symbolized_line)
 
 

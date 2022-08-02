@@ -116,7 +116,7 @@ class JavaTester(Tester):
     @contextlib.contextmanager
     def flight_server(self, scenario_name=None):
         cmd = ['java'] + self.JAVA_OPTS + \
-            ['-cp', self.ARROW_FLIGHT_JAR, self.ARROW_FLIGHT_SERVER,
+                ['-cp', self.ARROW_FLIGHT_JAR, self.ARROW_FLIGHT_SERVER,
              '-port', '0']
         if scenario_name:
             cmd.extend(('-scenario', scenario_name))
@@ -130,11 +130,10 @@ class JavaTester(Tester):
                 server.kill()
                 out, err = server.communicate()
                 raise RuntimeError(
-                    "Flight-Java server did not start properly, "
-                    "stdout:\n{}\n\nstderr:\n{}\n"
-                    .format(output + out.decode(), err.decode()))
-            port = int(output.split(":")[1])
-            yield port
+                    f"Flight-Java server did not start properly, stdout:\n{output + out.decode()}\n\nstderr:\n{err.decode()}\n"
+                )
+
+            yield int(output.split(":")[1])
         finally:
             server.kill()
             server.wait(5)

@@ -120,15 +120,11 @@ def random_bytes(nbytes):
 
 
 def tobytes(o):
-    if isinstance(o, str):
-        return o.encode('utf8')
-    return o
+    return o.encode('utf8') if isinstance(o, str) else o
 
 
 def frombytes(o):
-    if isinstance(o, bytes):
-        return o.decode('utf8')
-    return o
+    return o.decode('utf8') if isinstance(o, bytes) else o
 
 
 def run_cmd(cmd):

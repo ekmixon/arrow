@@ -106,14 +106,15 @@ def check_chunked_overflow(name, col):
         return
 
     if col.type in (ext.binary(), ext.string()):
-        raise ValueError("Column '{}' exceeds 2GB maximum capacity of "
-                         "a Feather binary column. This restriction may be "
-                         "lifted in the future".format(name))
+        raise ValueError(
+            f"Column '{name}' exceeds 2GB maximum capacity of a Feather binary column. This restriction may be lifted in the future"
+        )
+
     else:
         # TODO(wesm): Not sure when else this might be reached
-        raise ValueError("Column '{}' of type {} was chunked on conversion "
-                         "to Arrow and cannot be currently written to "
-                         "Feather format".format(name, str(col.type)))
+        raise ValueError(
+            f"Column '{name}' of type {str(col.type)} was chunked on conversion to Arrow and cannot be currently written to Feather format"
+        )
 
 
 _FEATHER_SUPPORTED_CODECS = {'lz4', 'zstd', 'uncompressed'}
@@ -172,14 +173,14 @@ def write_feather(df, dest, compression=None, compression_level=None,
         if chunksize is not None:
             raise ValueError("Feather V1 files do not support chunksize "
                              "option")
-    else:
-        if compression is None and Codec.is_available('lz4_frame'):
-            compression = 'lz4'
-        elif (compression is not None and
+    elif compression is None and Codec.is_available('lz4_frame'):
+        compression = 'lz4'
+    elif (compression is not None and
               compression not in _FEATHER_SUPPORTED_CODECS):
-            raise ValueError('compression="{}" not supported, must be '
-                             'one of {}'.format(compression,
-                                                _FEATHER_SUPPORTED_CODECS))
+        raise ValueError(
+            f'compression="{compression}" not supported, must be one of {_FEATHER_SUPPORTED_CODECS}'
+        )
+
 
     try:
         _feather.write_feather(table, dest, compression=compression,
@@ -248,15 +249,13 @@ def read_table(source, columns=None, memory_map=True):
         table = reader.read_names(columns)
     else:
         column_type_names = [t.__name__ for t in column_types]
-        raise TypeError("Columns must be indices or names. "
-                        "Got columns {} of types {}"
-                        .format(columns, column_type_names))
+        raise TypeError(
+            f"Columns must be indices or names. Got columns {columns} of types {column_type_names}"
+        )
+
 
     # Feather v1 already respects the column selection
-    if reader.version < 3:
-        return table
-    # Feather v2 reads with sorted / deduplicated selection
-    elif sorted(set(columns)) == columns:
+    if reader.version < 3 or sorted(set(columns)) == columns:
         return table
     else:
         # follow exact order / selection of names

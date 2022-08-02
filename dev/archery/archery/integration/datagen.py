@@ -46,8 +46,7 @@ class Field(object):
             ('children', self._get_children()),
         ]
 
-        dct = self._get_dictionary()
-        if dct:
+        if dct := self._get_dictionary():
             entries.append(('dictionary', dct))
 
         if self.metadata is not None and len(self.metadata) > 0:
@@ -116,7 +115,7 @@ class PrimitiveColumn(Column):
     def _get_buffers(self):
         return [
             ('VALIDITY', [int(v) for v in self.is_valid]),
-            ('DATA', list([self._encode_value(x) for x in self.values]))
+            ('DATA', [self._encode_value(x) for x in self.values]),
         ]
 
 
@@ -157,10 +156,10 @@ class IntegerField(PrimitiveField):
 
     def _get_generated_data_bounds(self):
         if self.is_signed:
-            signed_iinfo = np.iinfo('int' + str(self.bit_width))
+            signed_iinfo = np.iinfo(f'int{str(self.bit_width)}')
             min_value, max_value = signed_iinfo.min, signed_iinfo.max
         else:
-            unsigned_iinfo = np.iinfo('uint' + str(self.bit_width))
+            unsigned_iinfo = np.iinfo(f'uint{str(self.bit_width)}')
             min_value, max_value = 0, unsigned_iinfo.max
 
         lower_bound = max(min_value, self.min_value)
@@ -413,7 +412,7 @@ class FloatingPointField(PrimitiveField):
 
     @property
     def numpy_type(self):
-        return 'float' + str(self.bit_width)
+        return f'float{str(self.bit_width)}'
 
     def _get_type(self):
         return OrderedDict([
@@ -531,10 +530,7 @@ class FixedSizeBinaryField(PrimitiveField):
 
     def generate_column(self, size, name=None):
         is_valid = self._make_is_valid(size)
-        values = []
-
-        for i in range(size):
-            values.append(random_bytes(self.byte_width))
+        values = [random_bytes(self.byte_width) for _ in range(size)]
 
         if name is None:
             name = self.name
@@ -704,10 +700,7 @@ class FixedSizeBinaryColumn(PrimitiveColumn):
         return frombytes(binascii.hexlify(x).upper())
 
     def _get_buffers(self):
-        data = []
-        for i, v in enumerate(self.values):
-            data.append(self._encode_value(v))
-
+        data = [self._encode_value(v) for v in self.values]
         return [
             ('VALIDITY', [int(x) for x in self.is_valid]),
             ('DATA', data)
@@ -1268,8 +1261,12 @@ def generate_primitive_case(batch_sizes, name='primitive'):
     fields = []
 
     for type_ in types:
-        fields.append(get_field(type_ + "_nullable", type_, nullable=True))
-        fields.append(get_field(type_ + "_nonnullable", type_, nullable=False))
+        fields.extend(
+            (
+                get_field(f"{type_}_nullable", type_, nullable=True),
+                get_field(f"{type_}_nonnullable", type_, nullable=False),
+            )
+        )
 
     return _generate_file(name, fields, batch_sizes)
 
@@ -1280,8 +1277,12 @@ def generate_primitive_large_offsets_case(batch_sizes):
     fields = []
 
     for type_ in types:
-        fields.append(get_field(type_ + "_nullable", type_, nullable=True))
-        fields.append(get_field(type_ + "_nonnullable", type_, nullable=False))
+        fields.extend(
+            (
+                get_field(f"{type_}_nullable", type_, nullable=True),
+                get_field(f"{type_}_nonnullable", type_, nullable=False),
+            )
+        )
 
     return _generate_file('primitive_large_offsets', fields, batch_sizes)
 
@@ -1309,10 +1310,10 @@ def generate_null_trivial_case(batch_sizes):
 
 def generate_decimal128_case():
     fields = [
-        DecimalField(name='f{}'.format(i), precision=precision, scale=2,
-                     bit_width=128)
+        DecimalField(name=f'f{i}', precision=precision, scale=2, bit_width=128)
         for i, precision in enumerate(range(3, 39))
     ]
+
 
     possible_batch_sizes = 7, 10
     batch_sizes = [possible_batch_sizes[i % 2] for i in range(len(fields))]
@@ -1324,10 +1325,10 @@ def generate_decimal128_case():
 
 def generate_decimal256_case():
     fields = [
-        DecimalField(name='f{}'.format(i), precision=precision, scale=5,
-                     bit_width=256)
+        DecimalField(name=f'f{i}', precision=precision, scale=5, bit_width=256)
         for i, precision in enumerate(range(37, 70))
     ]
+
 
     possible_batch_sizes = 7, 10
     batch_sizes = [possible_batch_sizes[i % 2] for i in range(len(fields))]

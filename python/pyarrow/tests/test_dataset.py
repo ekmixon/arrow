@@ -86,7 +86,7 @@ def mockfs():
     ]
 
     for i, directory in enumerate(directories):
-        path = '{}/file{}.parquet'.format(directory, i)
+        path = f'{directory}/file{i}.parquet'
         mockfs.create_dir(directory)
         with mockfs.open_output_stream(path) as out:
             data = [
@@ -950,10 +950,10 @@ def test_fragments_reconstruct(tempdir, dataset_reader):
     table, dataset = _create_dataset_for_fragments(tempdir)
 
     def assert_yields_projected(fragment, row_slice,
-                                columns=None, filter=None):
+                                    columns=None, filter=None):
         actual = fragment.to_table(
             schema=table.schema, columns=columns, filter=filter)
-        column_names = columns if columns else table.column_names
+        column_names = columns or table.column_names
         assert actual.column_names == column_names
 
         expected = table.slice(*row_slice).select(column_names)
@@ -1263,7 +1263,7 @@ def test_fragments_parquet_row_groups_predicate(tempdir):
     row_group_fragments = list(
         fragment.split_by_row_group(filter=ds.field('part') == 'b',
                                     schema=dataset.schema))
-    assert len(row_group_fragments) == 0
+    assert not row_group_fragments
 
 
 @pytest.mark.pandas
@@ -1400,10 +1400,10 @@ def test_fragments_repr(tempdir, dataset):
     dataset = ds.dataset(path, format="parquet")
     fragment = list(dataset.get_fragments())[0]
     assert (
-        repr(fragment) ==
-        "<pyarrow.dataset.ParquetFileFragment path={}>".format(
-            dataset.filesystem.normalize_path(str(path)))
+        repr(fragment)
+        == f"<pyarrow.dataset.ParquetFileFragment path={dataset.filesystem.normalize_path(str(path))}>"
     )
+
 
     # non-parquet format
     path = tempdir / "data.feather"
@@ -1411,9 +1411,8 @@ def test_fragments_repr(tempdir, dataset):
     dataset = ds.dataset(path, format="feather")
     fragment = list(dataset.get_fragments())[0]
     assert (
-        repr(fragment) ==
-        "<pyarrow.dataset.FileFragment type=ipc path={}>".format(
-            dataset.filesystem.normalize_path(str(path)))
+        repr(fragment)
+        == f"<pyarrow.dataset.FileFragment type=ipc path={dataset.filesystem.normalize_path(str(path))}>"
     )
 
 
@@ -1491,7 +1490,7 @@ def test_partitioning_factory_segment_encoding():
             "hive/date=2021-05-04 00%3A00%3A00/string=%24",
     ]:
         mockfs.create_dir(directory)
-        with mockfs.open_output_stream(directory + "/0.feather") as sink:
+        with mockfs.open_output_stream(f"{directory}/0.feather") as sink:
             with pa.ipc.new_file(sink, schema) as writer:
                 writer.write_table(table)
                 writer.close()
@@ -1579,7 +1578,7 @@ def test_dictionary_partitioning_outer_nulls_raises(tempdir):
 
 def _has_subdirs(basedir):
     elements = os.listdir(basedir)
-    return any([os.path.isdir(os.path.join(basedir, el)) for el in elements])
+    return any(os.path.isdir(os.path.join(basedir, el)) for el in elements)
 
 
 def _do_list_all_dirs(basedir, path_so_far, result):
@@ -1727,7 +1726,7 @@ def _create_directory_of_files(base_dir):
 
 def _check_dataset(dataset, table, dataset_reader):
     # also test that pickle roundtrip keeps the functionality
-    for d in [dataset, pickle.loads(pickle.dumps(dataset))]:
+    for _ in [dataset, pickle.loads(pickle.dumps(dataset))]:
         assert dataset.schema.equals(table.schema)
         assert dataset_reader.to_table(dataset).equals(table)
 
@@ -1737,7 +1736,7 @@ def _check_dataset_from_path(path, table, dataset_reader, **kwargs):
     assert isinstance(path, pathlib.Path)
 
     # accept Path, str, List[Path], List[str]
-    for p in [path, str(path), [path], [str(path)]]:
+    for _ in [path, str(path), [path], [str(path)]]:
         dataset = ds.dataset(path, **kwargs)
         assert isinstance(dataset, ds.FileSystemDataset)
         _check_dataset(dataset, table, dataset_reader)
@@ -2027,7 +2026,7 @@ def _create_partitioned_dataset(basedir):
     path.mkdir()
 
     for i in range(3):
-        part = path / "part={}".format(i)
+        part = path / f"part={i}"
         part.mkdir()
         pq.write_table(table.slice(3*i, 3), part / "test.parquet")
 
@@ -2172,11 +2171,7 @@ def test_partition_discovery(
             partitioning = ds.HivePartitioning.discover(
                 infer_dictionary=infer_dictionary)
         fmt = "part1={0}/part2={1}"
-        if null_fallback:
-            null_value = null_fallback
-        else:
-            null_value = "__HIVE_DEFAULT_PARTITION__"
-
+        null_value = null_fallback or "__HIVE_DEFAULT_PARTITION__"
     basepath = tempdir / "dataset"
     basepath.mkdir()
 
@@ -2196,6 +2191,7 @@ def test_partition_discovery(
             return pa.dictionary(pa.int32(), value_type)
         else:
             return pa.string() if isinstance(key, str) else pa.int32()
+
     expected_schema = table.schema.append(
         pa.field("part1", expected_type(part_keys1[0]))
     ).append(
@@ -2241,10 +2237,8 @@ def s3_example_simple(s3_connection, s3_server):
     import pyarrow.parquet as pq
 
     host, port, access_key, secret_key = s3_connection
-    uri = (
-        "s3://{}:{}@mybucket/data.parquet?scheme=http&endpoint_override={}:{}"
-        .format(access_key, secret_key, host, port)
-    )
+    uri = f"s3://{access_key}:{secret_key}@mybucket/data.parquet?scheme=http&endpoint_override={host}:{port}"
+
 
     fs, path = FileSystem.from_uri(uri)
 
@@ -2282,10 +2276,9 @@ def test_open_dataset_from_uri_s3_fsspec(s3_example_simple):
     fs = s3fs.S3FileSystem(
         key=access_key,
         secret=secret_key,
-        client_kwargs={
-            'endpoint_url': 'http://{}:{}'.format(host, port)
-        }
+        client_kwargs={'endpoint_url': f'http://{host}:{port}'},
     )
+
 
     # passing as fsspec filesystem
     dataset = ds.dataset(path, format="parquet", filesystem=fs)
@@ -2306,9 +2299,8 @@ def test_open_dataset_from_s3_with_filesystem_uri(s3_connection, s3_server):
     host, port, access_key, secret_key = s3_connection
     bucket = 'theirbucket'
     path = 'nested/folder/data.parquet'
-    uri = "s3://{}:{}@{}/{}?scheme=http&endpoint_override={}:{}".format(
-        access_key, secret_key, bucket, path, host, port
-    )
+    uri = f"s3://{access_key}:{secret_key}@{bucket}/{path}?scheme=http&endpoint_override={host}:{port}"
+
 
     fs, path = FileSystem.from_uri(uri)
     assert path == 'theirbucket/nested/folder/data.parquet'
@@ -2659,7 +2651,7 @@ def test_csv_format(tempdir, dataset_reader):
 ])
 def test_csv_format_compressed(tempdir, compression, dataset_reader):
     if not pyarrow.Codec.is_available(compression):
-        pytest.skip("{} support is not built".format(compression))
+        pytest.skip(f"{compression} support is not built")
     table = pa.table({'a': pa.array([1, 2, 3], type="int64"),
                       'b': pa.array([.1, .2, .3], type="float64")})
     filesystem = fs.LocalFileSystem()
@@ -2836,7 +2828,7 @@ def test_parquet_dataset_factory_order(tempdir):
     # Ensure the table contains values from 0-100 in the right order
     scanned_table = dataset.to_table()
     scanned_col = scanned_table.column('f1').to_pylist()
-    assert scanned_col == list(range(0, 100))
+    assert scanned_col == list(range(100))
 
 
 @pytest.mark.parquet
@@ -3375,27 +3367,25 @@ def test_write_table_multiple_fragments(tempdir):
     # Table with multiple batches written as single Fragment by default
     base_dir = tempdir / 'single'
     ds.write_dataset(table, base_dir, format="feather")
-    assert set(base_dir.rglob("*")) == set([base_dir / "part-0.feather"])
+    assert set(base_dir.rglob("*")) == {base_dir / "part-0.feather"}
     assert ds.dataset(base_dir, format="ipc").to_table().equals(table)
 
     # Same for single-element list of Table
     base_dir = tempdir / 'single-list'
     ds.write_dataset([table], base_dir, format="feather")
-    assert set(base_dir.rglob("*")) == set([base_dir / "part-0.feather"])
+    assert set(base_dir.rglob("*")) == {base_dir / "part-0.feather"}
     assert ds.dataset(base_dir, format="ipc").to_table().equals(table)
 
     # Provide list of batches to write multiple fragments
     base_dir = tempdir / 'multiple'
     ds.write_dataset(table.to_batches(), base_dir, format="feather")
-    assert set(base_dir.rglob("*")) == set(
-        [base_dir / "part-0.feather"])
+    assert set(base_dir.rglob("*")) == {base_dir / "part-0.feather"}
     assert ds.dataset(base_dir, format="ipc").to_table().equals(table)
 
     # Provide list of tables to write multiple fragments
     base_dir = tempdir / 'multiple-table'
     ds.write_dataset([table, table], base_dir, format="feather")
-    assert set(base_dir.rglob("*")) == set(
-        [base_dir / "part-0.feather"])
+    assert set(base_dir.rglob("*")) == {base_dir / "part-0.feather"}
     assert ds.dataset(base_dir, format="ipc").to_table().equals(
         pa.concat_tables([table]*2)
     )
@@ -3408,9 +3398,14 @@ def test_write_iterable(tempdir):
     ], names=["f1", "f2", "part"])
 
     base_dir = tempdir / 'inmemory_iterable'
-    ds.write_dataset((batch for batch in table.to_batches()), base_dir,
-                     schema=table.schema,
-                     basename_template='dat_{i}.arrow', format="feather")
+    ds.write_dataset(
+        iter(table.to_batches()),
+        base_dir,
+        schema=table.schema,
+        basename_template='dat_{i}.arrow',
+        format="feather",
+    )
+
     result = ds.dataset(base_dir, format="ipc").to_table()
     assert result.equals(table)
 

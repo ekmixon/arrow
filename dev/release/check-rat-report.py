@@ -42,11 +42,7 @@ for r in resources:
     if not approvals or approvals[0].attrib['name'] == 'true':
         continue
     clean_name = re.sub('^[^/]+/', '', r.attrib['name'])
-    excluded = False
-    for g in globs:
-        if fnmatch.fnmatch(clean_name, g):
-            excluded = True
-            break
+    excluded = any(fnmatch.fnmatch(clean_name, g) for g in globs)
     if not excluded:
         sys.stdout.write("NOT APPROVED: %s (%s): %s\n" % (
             clean_name, r.attrib['name'], approvals[0].attrib['name']))

@@ -26,7 +26,7 @@ from .logger import logger, ctx
 def default_bin(name, default):
     assert(default)
     env_name = "ARCHERY_{0}_BIN".format(default.upper())
-    return name if name else os.environ.get(env_name, default)
+    return name or os.environ.get(env_name, default)
 
 
 # Decorator running a command and returning stdout
@@ -74,7 +74,7 @@ class Command:
         if "check" not in kwargs:
             kwargs["check"] = True
 
-        logger.debug("Executing `{}`".format(invocation))
+        logger.debug(f"Executing `{invocation}`")
         return subprocess.run(invocation, **kwargs)
 
     @property

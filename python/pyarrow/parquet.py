@@ -48,30 +48,21 @@ _URI_STRIP_SCHEMES = ('hdfs',)
 def _parse_uri(path):
     path = _stringify_path(path)
     parsed_uri = urllib.parse.urlparse(path)
-    if parsed_uri.scheme in _URI_STRIP_SCHEMES:
-        return parsed_uri.path
-    else:
-        # ARROW-4073: On Windows returning the path with the scheme
-        # stripped removes the drive letter, if any
-        return path
+    return parsed_uri.path if parsed_uri.scheme in _URI_STRIP_SCHEMES else path
 
 
 def _get_filesystem_and_path(passed_filesystem, path):
     if passed_filesystem is None:
         return legacyfs.resolve_filesystem_and_path(path, passed_filesystem)
-    else:
-        passed_filesystem = legacyfs._ensure_filesystem(passed_filesystem)
-        parsed_path = _parse_uri(path)
-        return passed_filesystem, parsed_path
+    passed_filesystem = legacyfs._ensure_filesystem(passed_filesystem)
+    parsed_path = _parse_uri(path)
+    return passed_filesystem, parsed_path
 
 
 def _check_contains_null(val):
     if isinstance(val, bytes):
         for byte in val:
-            if isinstance(byte, bytes):
-                compare_to = chr(0)
-            else:
-                compare_to = 0
+            compare_to = chr(0) if isinstance(byte, bytes) else 0
             if byte == compare_to:
                 return True
     elif isinstance(val, str):
@@ -152,7 +143,7 @@ def _filters_to_expression(filters):
     def convert_single_predicate(col, op, val):
         field = ds.field(col)
 
-        if op == "=" or op == "==":
+        if op in ["=", "=="]:
             return field == val
         elif op == "!=":
             return field != val
@@ -361,15 +352,16 @@ class ParquetFile:
             Contents of each batch as a record batch
         """
         if row_groups is None:
-            row_groups = range(0, self.metadata.num_row_groups)
+            row_groups = range(self.metadata.num_row_groups)
         column_indices = self._get_column_indices(
             columns, use_pandas_metadata=use_pandas_metadata)
 
-        batches = self.reader.iter_batches(batch_size,
-                                           row_groups=row_groups,
-                                           column_indices=column_indices,
-                                           use_threads=use_threads)
-        return batches
+        return self.reader.iter_batches(
+            batch_size,
+            row_groups=row_groups,
+            column_indices=column_indices,
+            use_threads=use_threads,
+        )
 
     def read(self, columns=None, use_threads=True, use_pandas_metadata=False):
         """
@@ -460,36 +452,33 @@ def _sanitized_spark_field_name(name):
 
 
 def _sanitize_schema(schema, flavor):
-    if 'spark' in flavor:
-        sanitized_fields = []
-
-        schema_changed = False
-
-        for field in schema:
-            name = field.name
-            sanitized_name = _sanitized_spark_field_name(name)
-
-            if sanitized_name != name:
-                schema_changed = True
-                sanitized_field = pa.field(sanitized_name, field.type,
-                                           field.nullable, field.metadata)
-                sanitized_fields.append(sanitized_field)
-            else:
-                sanitized_fields.append(field)
-
-        new_schema = pa.schema(sanitized_fields, metadata=schema.metadata)
-        return new_schema, schema_changed
-    else:
+    if 'spark' not in flavor:
         return schema, False
+    sanitized_fields = []
+
+    schema_changed = False
+
+    for field in schema:
+        name = field.name
+        sanitized_name = _sanitized_spark_field_name(name)
+
+        if sanitized_name != name:
+            schema_changed = True
+            sanitized_field = pa.field(sanitized_name, field.type,
+                                       field.nullable, field.metadata)
+            sanitized_fields.append(sanitized_field)
+        else:
+            sanitized_fields.append(field)
+
+    new_schema = pa.schema(sanitized_fields, metadata=schema.metadata)
+    return new_schema, schema_changed
 
 
 def _sanitize_table(table, new_schema, flavor):
-    # TODO: This will not handle prohibited characters in nested field names
-    if 'spark' in flavor:
-        column_data = [table[i] for i in range(table.num_columns)]
-        return pa.Table.from_arrays(column_data, schema=new_schema)
-    else:
+    if 'spark' not in flavor:
         return table
+    column_data = [table[i] for i in range(table.num_columns)]
+    return pa.Table.from_arrays(column_data, schema=new_schema)
 
 
 _parquet_writer_arg_docs = """version : {"1.0", "2.4", "2.6"}, default "1.0"
@@ -619,11 +608,7 @@ schema : arrow Schema
                  **options):
         if use_deprecated_int96_timestamps is None:
             # Use int96 timestamps for Spark
-            if flavor is not None and 'spark' in flavor:
-                use_deprecated_int96_timestamps = True
-            else:
-                use_deprecated_int96_timestamps = False
-
+            use_deprecated_int96_timestamps = flavor is not None and 'spark' in flavor
         self.flavor = flavor
         if flavor is not None:
             schema, self.schema_changed = _sanitize_schema(schema, flavor)
@@ -640,19 +625,18 @@ schema : arrow Schema
         filesystem, path = _resolve_filesystem_and_path(
             where, filesystem, allow_legacy_filesystem=True
         )
-        if filesystem is not None:
-            if isinstance(filesystem, legacyfs.FileSystem):
-                # legacy filesystem (eg custom subclass)
-                # TODO deprecate
-                sink = self.file_handle = filesystem.open(path, 'wb')
-            else:
-                # ARROW-10480: do not auto-detect compression.  While
-                # a filename like foo.parquet.gz is nonconforming, it
-                # shouldn't implicitly apply compression.
-                sink = self.file_handle = filesystem.open_output_stream(
-                    path, compression=None)
-        else:
+        if filesystem is None:
             sink = where
+        elif isinstance(filesystem, legacyfs.FileSystem):
+            # legacy filesystem (eg custom subclass)
+            # TODO deprecate
+            sink = self.file_handle = filesystem.open(path, 'wb')
+        else:
+            # ARROW-10480: do not auto-detect compression.  While
+            # a filename like foo.parquet.gz is nonconforming, it
+            # shouldn't implicitly apply compression.
+            sink = self.file_handle = filesystem.open_output_stream(
+                path, compression=None)
         self._metadata_collector = options.pop('metadata_collector', None)
         engine_version = 'V2'
         self.writer = _parquet.ParquetWriter(
@@ -766,11 +750,15 @@ class ParquetDatasetPiece:
         self.file_options = file_options or {}
 
     def __eq__(self, other):
-        if not isinstance(other, ParquetDatasetPiece):
-            return False
-        return (self.path == other.path and
-                self.row_group == other.row_group and
-                self.partition_keys == other.partition_keys)
+        return (
+            (
+                self.path == other.path
+                and self.row_group == other.row_group
+                and self.partition_keys == other.partition_keys
+            )
+            if isinstance(other, ParquetDatasetPiece)
+            else False
+        )
 
     def __repr__(self):
         return ('{}({!r}, row_group={!r}, partition_keys={!r})'
@@ -782,14 +770,16 @@ class ParquetDatasetPiece:
         result = ''
 
         if len(self.partition_keys) > 0:
-            partition_str = ', '.join('{}={}'.format(name, index)
-                                      for name, index in self.partition_keys)
-            result += 'partition[{}] '.format(partition_str)
+            partition_str = ', '.join(
+                f'{name}={index}' for name, index in self.partition_keys
+            )
+
+            result += f'partition[{partition_str}] '
 
         result += self.path
 
         if self.row_group is not None:
-            result += ' | row_group={}'.format(self.row_group)
+            result += f' | row_group={self.row_group}'
 
         return result
 
@@ -907,11 +897,10 @@ class PartitionSet:
         """
         if key in self.key_indices:
             return self.key_indices[key]
-        else:
-            index = len(self.key_indices)
-            self.keys.append(key)
-            self.key_indices[key] = index
-            return index
+        index = len(self.key_indices)
+        self.keys.append(key)
+        self.key_indices[key] = index
+        return index
 
     @property
     def dictionary(self):
@@ -984,8 +973,7 @@ class ParquetPartitions:
         """
         if level == len(self.levels):
             if name in self.partition_names:
-                raise ValueError('{} was the name of the partition in '
-                                 'another level'.format(name))
+                raise ValueError(f'{name} was the name of the partition in another level')
 
             part_set = PartitionSet(name)
             self.levels.append(part_set)
@@ -1019,7 +1007,7 @@ class ParquetPartitions:
         p_value = f_type(self.levels[level]
                          .dictionary[p_value_index].as_py())
 
-        if op == "=" or op == "==":
+        if op in ["=", "=="]:
             return p_value == f_value
         elif op == "!=":
             return p_value != f_value
@@ -1096,9 +1084,8 @@ class ParquetManifest:
         filtered_files.sort()
         filtered_directories.sort()
 
-        if len(filtered_files) > 0 and len(filtered_directories) > 0:
-            raise ValueError('Found files in an intermediate '
-                             'directory: {}'.format(base_path))
+        if filtered_files and filtered_directories:
+            raise ValueError(f'Found files in an intermediate directory: {base_path}')
         elif len(filtered_directories) > 0:
             self._visit_directories(level, filtered_directories, part_keys)
         else:
@@ -1136,8 +1123,7 @@ class ParquetManifest:
         if self.partition_scheme == 'hive':
             return _parse_hive_partition(dirname)
         else:
-            raise NotImplementedError('partition schema: {}'
-                                      .format(self.partition_scheme))
+            raise NotImplementedError(f'partition schema: {self.partition_scheme}')
 
     def _push_pieces(self, files, part_keys):
         self.pieces.extend([
@@ -1149,8 +1135,7 @@ class ParquetManifest:
 
 def _parse_hive_partition(value):
     if '=' not in value:
-        raise ValueError('Directory name did not appear to be a '
-                         'partition: {}'.format(value))
+        raise ValueError(f'Directory name did not appear to be a partition: {value}')
     return value.split('=', 1)
 
 
@@ -1279,15 +1264,13 @@ coerce_int96_timestamp_unit : str, default None.
                 coerce_int96_timestamp_unit=None):
         if use_legacy_dataset is None:
             # if a new filesystem is passed -> default to new implementation
-            if isinstance(filesystem, FileSystem):
-                use_legacy_dataset = False
-            # otherwise the default is still True
-            else:
-                use_legacy_dataset = True
-
-        if not use_legacy_dataset:
-            return _ParquetDatasetV2(
-                path_or_paths, filesystem=filesystem,
+            use_legacy_dataset = not isinstance(filesystem, FileSystem)
+        return (
+            object.__new__(cls)
+            if use_legacy_dataset
+            else _ParquetDatasetV2(
+                path_or_paths,
+                filesystem=filesystem,
                 filters=filters,
                 partitioning=partitioning,
                 read_dictionary=read_dictionary,
@@ -1296,13 +1279,13 @@ coerce_int96_timestamp_unit : str, default None.
                 pre_buffer=pre_buffer,
                 coerce_int96_timestamp_unit=coerce_int96_timestamp_unit,
                 # unsupported keywords
-                schema=schema, metadata=metadata,
+                schema=schema,
+                metadata=metadata,
                 split_row_groups=split_row_groups,
                 validate_schema=validate_schema,
-                metadata_nthreads=metadata_nthreads
+                metadata_nthreads=metadata_nthreads,
             )
-        self = object.__new__(cls)
-        return self
+        )
 
     def __init__(self, path_or_paths, filesystem=None, schema=None,
                  metadata=None, split_row_groups=False, validate_schema=True,
@@ -1378,11 +1361,10 @@ coerce_int96_timestamp_unit : str, default None.
                      'split_row_groups'):
             if getattr(self, prop) != getattr(other, prop):
                 return False
-        for prop in ('memory_map', 'buffer_size'):
-            if getattr(self._metadata, prop) != getattr(other._metadata, prop):
-                return False
-
-        return True
+        return all(
+            getattr(self._metadata, prop) == getattr(other._metadata, prop)
+            for prop in ('memory_map', 'buffer_size')
+        )
 
     def __eq__(self, other):
         try:
@@ -1579,8 +1561,7 @@ def _make_manifest(path_or_paths, fs, pathsep='/', metadata_nthreads=1,
         pieces = []
         for path in path_or_paths:
             if not fs.isfile(path):
-                raise OSError('Passed non-file path: {}'
-                              .format(path))
+                raise OSError(f'Passed non-file path: {path}')
             piece = ParquetDatasetPiece._create(
                 path, open_file_func=open_file_func)
             pieces.append(piece)
@@ -1589,9 +1570,7 @@ def _make_manifest(path_or_paths, fs, pathsep='/', metadata_nthreads=1,
 
 
 def _is_local_file_system(fs):
-    return isinstance(fs, LocalFileSystem) or isinstance(
-        fs, legacyfs.LocalFileSystem
-    )
+    return isinstance(fs, (LocalFileSystem, legacyfs.LocalFileSystem))
 
 
 class _ParquetDatasetV2:
@@ -1634,7 +1613,7 @@ class _ParquetDatasetV2:
         if filesystem is not None:
             filesystem = _ensure_filesystem(
                 filesystem, use_mmap=memory_map)
-        elif filesystem is None and memory_map:
+        elif memory_map:
             # if memory_map is specified, assume local file system (string
             # path can in principle be URI for any filesystem)
             filesystem = LocalFileSystem(use_mmap=memory_map)
@@ -1656,20 +1635,19 @@ class _ParquetDatasetV2:
         if isinstance(path_or_paths, list):
             if len(path_or_paths) == 1:
                 single_file = path_or_paths[0]
-        else:
-            if _is_path_like(path_or_paths):
-                path_or_paths = _stringify_path(path_or_paths)
-                if filesystem is None:
-                    # path might be a URI describing the FileSystem as well
-                    try:
-                        filesystem, path_or_paths = FileSystem.from_uri(
-                            path_or_paths)
-                    except ValueError:
-                        filesystem = LocalFileSystem(use_mmap=memory_map)
-                if filesystem.get_file_info(path_or_paths).is_file:
-                    single_file = path_or_paths
-            else:
+        elif _is_path_like(path_or_paths):
+            path_or_paths = _stringify_path(path_or_paths)
+            if filesystem is None:
+                # path might be a URI describing the FileSystem as well
+                try:
+                    filesystem, path_or_paths = FileSystem.from_uri(
+                        path_or_paths)
+                except ValueError:
+                    filesystem = LocalFileSystem(use_mmap=memory_map)
+            if filesystem.get_file_info(path_or_paths).is_file:
                 single_file = path_or_paths
+        else:
+            single_file = path_or_paths
 
         if single_file is not None:
             self._enable_parallel_column_conversion = True
@@ -1727,22 +1705,25 @@ class _ParquetDatasetV2:
         # if use_pandas_metadata, we need to include index columns in the
         # column selection, to be able to restore those in the pandas DataFrame
         metadata = self.schema.metadata
-        if columns is not None and use_pandas_metadata:
-            if metadata and b'pandas' in metadata:
-                # RangeIndex can be represented as dict instead of column name
-                index_columns = [
-                    col for col in _get_pandas_index_columns(metadata)
-                    if not isinstance(col, dict)
-                ]
-                columns = (
-                    list(columns) + list(set(index_columns) - set(columns))
-                )
+        if (
+            columns is not None
+            and use_pandas_metadata
+            and metadata
+            and b'pandas' in metadata
+        ):
+            # RangeIndex can be represented as dict instead of column name
+            index_columns = [
+                col for col in _get_pandas_index_columns(metadata)
+                if not isinstance(col, dict)
+            ]
+            columns = (
+                list(columns) + list(set(index_columns) - set(columns))
+            )
 
-        if self._enable_parallel_column_conversion:
-            if use_threads:
-                # Allow per-column parallelism; would otherwise cause
-                # contention in the presence of per-file parallelism.
-                use_threads = False
+        if self._enable_parallel_column_conversion and use_threads:
+            # Allow per-column parallelism; would otherwise cause
+            # contention in the presence of per-file parallelism.
+            use_threads = False
 
         table = self._dataset.to_table(
             columns=columns, filter=self._filter_expression,
@@ -1751,11 +1732,10 @@ class _ParquetDatasetV2:
 
         # if use_pandas_metadata, restore the pandas metadata (which gets
         # lost if doing a specific `columns` selection in to_table)
-        if use_pandas_metadata:
-            if metadata and b"pandas" in metadata:
-                new_metadata = table.schema.metadata or {}
-                new_metadata.update({b"pandas": metadata[b"pandas"]})
-                table = table.replace_schema_metadata(new_metadata)
+        if use_pandas_metadata and metadata and b"pandas" in metadata:
+            new_metadata = table.schema.metadata or {}
+            new_metadata.update({b"pandas": metadata[b"pandas"]})
+            table = table.replace_schema_metadata(new_metadata)
 
         return table
 
@@ -2069,12 +2049,7 @@ def write_to_dataset(table, root_path, partition_cols=None,
     """
     if use_legacy_dataset is None:
         # if a new filesystem is passed -> default to new implementation
-        if isinstance(filesystem, FileSystem):
-            use_legacy_dataset = False
-        # otherwise the default is still True
-        else:
-            use_legacy_dataset = True
-
+        use_legacy_dataset = not isinstance(filesystem, FileSystem)
     if not use_legacy_dataset:
         import pyarrow.dataset as ds
 
@@ -2149,7 +2124,7 @@ def write_to_dataset(table, root_path, partition_cols=None,
             if partition_filename_cb:
                 outfile = partition_filename_cb(keys)
             else:
-                outfile = guid() + '.parquet'
+                outfile = f'{guid()}.parquet'
             relative_path = '/'.join([subdir, outfile])
             full_path = '/'.join([root_path, relative_path])
             with fs.open(full_path, 'wb') as f:
@@ -2161,7 +2136,7 @@ def write_to_dataset(table, root_path, partition_cols=None,
         if partition_filename_cb:
             outfile = partition_filename_cb(None)
         else:
-            outfile = guid() + '.parquet'
+            outfile = f'{guid()}.parquet'
         full_path = '/'.join([root_path, outfile])
         with fs.open(full_path, 'wb') as f:
             write_table(table, f, metadata_collector=metadata_collector,

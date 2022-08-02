@@ -108,24 +108,22 @@ class ComposeConfig:
         self.limit_presets = config.get('x-limit-presets', {})
         self.with_gpus = config.get('x-with-gpus', [])
         nodes = self.hierarchy.keys()
-        errors = []
+        errors = [
+            f'Service `{name}` defined in `x-with-gpus` bot not in `services`'
+            for name in self.with_gpus
+            if name not in services
+        ]
 
-        for name in self.with_gpus:
-            if name not in services:
-                errors.append(
-                    'Service `{}` defined in `x-with-gpus` bot not in '
-                    '`services`'.format(name)
-                )
-        for name in nodes - services:
-            errors.append(
-                'Service `{}` is defined in `x-hierarchy` bot not in '
-                '`services`'.format(name)
-            )
-        for name in services - nodes:
-            errors.append(
-                'Service `{}` is defined in `services` but not in '
-                '`x-hierarchy`'.format(name)
-            )
+
+        errors.extend(
+            f'Service `{name}` is defined in `x-hierarchy` bot not in `services`'
+            for name in nodes - services
+        )
+
+        errors.extend(
+            f'Service `{name}` is defined in `services` but not in `x-hierarchy`'
+            for name in services - nodes
+        )
 
         # trigger docker-compose's own validation
         compose = Command('docker-compose')
@@ -138,10 +136,8 @@ class ComposeConfig:
             errors += result.stderr.decode().splitlines()
 
         if errors:
-            msg = '\n'.join([' - {}'.format(msg) for msg in errors])
-            raise ValueError(
-                'Found errors with docker-compose:\n{}'.format(msg)
-            )
+            msg = '\n'.join([f' - {msg}' for msg in errors])
+            raise ValueError(f'Found errors with docker-compose:\n{msg}')
 
         rendered_config = StringIO(result.stdout.decode())
         self.path = config_path
@@ -215,9 +211,7 @@ class DockerCompose(Command):
             result.check_returncode()
         except subprocess.CalledProcessError as e:
             raise RuntimeError(
-                "{} exited with non-zero exit code {}".format(
-                    ' '.join(e.cmd), e.returncode
-                )
+                f"{' '.join(e.cmd)} exited with non-zero exit code {e.returncode}"
             )
 
     def pull(self, service_name, pull_leaf=True, using_docker=False):
@@ -327,7 +321,7 @@ class DockerCompose(Command):
 
         if env is not None:
             for k, v in env.items():
-                args.extend(['-e', '{}={}'.format(k, v)])
+                args.extend(['-e', f'{k}={v}'])
 
         if volumes is not None:
             for volume in volumes:
@@ -343,13 +337,13 @@ class DockerCompose(Command):
 
             # append env variables from the compose conf
             for k, v in service.get('environment', {}).items():
-                args.extend(['-e', '{}={}'.format(k, v)])
+                args.extend(['-e', f'{k}={v}'])
 
             # append volumes from the compose conf
             for v in service.get('volumes', []):
                 if not isinstance(v, str):
                     # if not the compact string volume definition
-                    v = "{}:{}".format(v['source'], v['target'])
+                    v = f"{v['source']}:{v['target']}"
                 args.extend(['-v', v])
 
             # infer whether an interactive shell is desired or not
@@ -361,14 +355,10 @@ class DockerCompose(Command):
                 if not limits:
                     raise ValueError(
                         f"Unknown resource limit preset '{resource_limit}'")
-                cpuset = limits.get('cpuset_cpus', [])
-                if cpuset:
+                if cpuset := limits.get('cpuset_cpus', []):
                     args.append(f'--cpuset-cpus={",".join(map(str, cpuset))}')
-                memory = limits.get('memory')
-                if memory:
-                    args.append(f'--memory={memory}')
-                    args.append(f'--memory-swap={memory}')
-
+                if memory := limits.get('memory'):
+                    args.extend((f'--memory={memory}', f'--memory-swap={memory}'))
             # get the actual docker image name instead of the compose service
             # name which we refer as image in general
             args.append(service['image'])
@@ -376,11 +366,8 @@ class DockerCompose(Command):
             # add command from compose if it wasn't overridden
             if command is not None:
                 args.append(command)
-            else:
-                # replace whitespaces from the preformatted compose command
-                cmd = _sanitize_command(service.get('command', ''))
-                if cmd:
-                    args.append(cmd)
+            elif cmd := _sanitize_command(service.get('command', '')):
+                args.append(cmd)
 
             # execute as a plain docker cli command
             self._execute_docker('run', '--rm', *args)

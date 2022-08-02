@@ -20,6 +20,7 @@ UNTESTED:
 read_message
 """
 
+
 import sys
 import sysconfig
 
@@ -37,7 +38,9 @@ has_ipc_support = platform == 'linux-x86_64'  # or 'ppc64' in platform
 
 cuda_ipc = pytest.mark.skipif(
     not has_ipc_support,
-    reason='CUDA IPC not supported in platform `%s`' % (platform))
+    reason=f'CUDA IPC not supported in platform `{platform}`',
+)
+
 
 global_context = None  # for flake8
 global_context1 = None  # for flake8
@@ -662,8 +665,7 @@ def make_recordbatch(length):
                         pa.field('f1', pa.int16())])
     a0 = pa.array(np.random.randint(0, 255, size=length, dtype=np.int16))
     a1 = pa.array(np.random.randint(0, 255, size=length, dtype=np.int16))
-    batch = pa.record_batch([a0, a1], schema=schema)
-    return batch
+    return pa.record_batch([a0, a1], schema=schema)
 
 
 def test_batch_serialize():
@@ -709,11 +711,9 @@ def make_table():
         dictionary=a2)
 
     arrays = [a0, a1, a2, a3, a4, a5]
-    schema = pa.schema([('f{}'.format(i), arr.type)
-                        for i, arr in enumerate(arrays)])
+    schema = pa.schema([(f'f{i}', arr.type) for i, arr in enumerate(arrays)])
     batch = pa.record_batch(arrays, schema=schema)
-    table = pa.Table.from_batches([batch])
-    return table
+    return pa.Table.from_batches([batch])
 
 
 def make_table_cuda():

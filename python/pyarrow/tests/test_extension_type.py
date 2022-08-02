@@ -123,7 +123,7 @@ def test_ext_type__storage_type():
 
 
 def test_uuid_type_pickle():
-    for proto in range(0, pickle.HIGHEST_PROTOCOL + 1):
+    for proto in range(pickle.HIGHEST_PROTOCOL + 1):
         ty = UuidType()
         ser = pickle.dumps(ty, protocol=proto)
         del ty
@@ -291,7 +291,7 @@ def test_ext_scalar_from_storage():
 
 
 def test_ext_array_pickling():
-    for proto in range(0, pickle.HIGHEST_PROTOCOL + 1):
+    for proto in range(pickle.HIGHEST_PROTOCOL + 1):
         ty = ParamExtType(3)
         storage = pa.array([b"foo", b"bar"], type=pa.binary(3))
         arr = pa.ExtensionArray.from_storage(ty, storage)
@@ -455,7 +455,7 @@ class PeriodType(pa.ExtensionType):
         return self._freq
 
     def __arrow_ext_serialize__(self):
-        return "freq={}".format(self.freq).encode()
+        return f"freq={self.freq}".encode()
 
     @classmethod
     def __arrow_ext_deserialize__(cls, storage_type, serialized):
@@ -579,7 +579,7 @@ def test_generic_ext_type_equality():
     period_type2 = PeriodType('D')
     period_type3 = PeriodType('H')
     assert period_type == period_type2
-    assert not period_type == period_type3
+    assert period_type != period_type3
 
 
 def test_generic_ext_type_register(registered_period_type):

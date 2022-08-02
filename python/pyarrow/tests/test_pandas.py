@@ -732,7 +732,7 @@ class TestConvertPrimitiveTypes:
         for dt in int_dtypes:
             for order in '=<>':
                 data = np.array([1, 2, 42], dtype=order + dt)
-                for np_arr in (data, data[::2]):
+                for _ in (data, data[::2]):
                     if data.dtype.isnative:
                         arr = pa.array(data)
                         assert arr.to_pylist() == data.tolist()
@@ -750,7 +750,7 @@ class TestConvertPrimitiveTypes:
 
         expected_cols = []
         arrays = []
-        for name in int_dtypes:
+        for _ in int_dtypes:
             values = np.random.randint(0, 100, size=num_values)
 
             arr = pa.array(values, mask=null_mask)
@@ -1013,7 +1013,7 @@ class TestConvertDateTimeLikeTypes:
 
     def test_python_datetime(self):
         # ARROW-2106
-        date_array = [datetime.today() + timedelta(days=x) for x in range(10)]
+        date_array = [datetime.now() + timedelta(days=x) for x in range(10)]
         df = pd.DataFrame({
             'datetime': pd.Series(date_array, dtype=object)
         })
@@ -1413,6 +1413,7 @@ class TestConvertDateTimeLikeTypes:
         tm.assert_series_equal(s, expected)
 
     def test_timestamp_to_pandas_out_of_bounds(self):
+        msg = "would result in out of bounds timestamp"
         # ARROW-7758 check for out of bounds timestamps for non-ns timestamps
 
         for unit in ['s', 'ms', 'us']:
@@ -1420,7 +1421,6 @@ class TestConvertDateTimeLikeTypes:
                 arr = pa.array([datetime(1, 1, 1)], pa.timestamp(unit, tz=tz))
                 table = pa.table({'a': arr})
 
-                msg = "would result in out of bounds timestamp"
                 with pytest.raises(ValueError, match=msg):
                     arr.to_pandas()
 
@@ -2660,8 +2660,6 @@ class TestConvertMisc:
             pa.Table.from_pandas(df)
 
     def test_strided_data_import(self):
-        cases = []
-
         columns = ['a', 'b', 'c']
         N, K = 100, 3
         random_numbers = np.random.randn(N, K).copy() * 100
@@ -2669,13 +2667,14 @@ class TestConvertMisc:
         numeric_dtypes = ['i1', 'i2', 'i4', 'i8', 'u1', 'u2', 'u4', 'u8',
                           'f4', 'f8']
 
-        for type_name in numeric_dtypes:
-            cases.append(random_numbers.astype(type_name))
-
+        cases = [random_numbers.astype(type_name) for type_name in numeric_dtypes]
         # strings
-        cases.append(np.array([random_ascii(10) for i in range(N * K)],
-                              dtype=object)
-                     .reshape(N, K).copy())
+        cases.append(
+            np.array([random_ascii(10) for _ in range(N * K)], dtype=object)
+            .reshape(N, K)
+            .copy()
+        )
+
 
         # booleans
         boolean_objects = (np.array([True, False, True] * N, dtype=object)
@@ -2683,11 +2682,14 @@ class TestConvertMisc:
 
         # add some nulls, so dtype comes back as objects
         boolean_objects[5] = None
-        cases.append(boolean_objects)
-
-        cases.append(np.arange("2016-01-01T00:00:00.001", N * K,
-                               dtype='datetime64[ms]')
-                     .reshape(N, K).copy())
+        cases.extend(
+            (
+                boolean_objects,
+                np.arange("2016-01-01T00:00:00.001", N * K, dtype='datetime64[ms]')
+                .reshape(N, K)
+                .copy(),
+            )
+        )
 
         strided_mask = (random_numbers > 0).astype(bool)[:, 0]
 
@@ -2884,8 +2886,7 @@ def _pytime_from_micros(val):
     val //= 1000000
     seconds = val % 60
     val //= 60
-    minutes = val % 60
-    hours = val // 60
+    hours, minutes = divmod(val, 60)
     return time(hours, minutes, seconds, microseconds)
 
 
@@ -2936,7 +2937,7 @@ def test_array_to_pandas_roundtrip(arr):
 
 
 def _generate_dedup_example(nunique, repeats):
-    unique_values = [rands(10) for i in range(nunique)]
+    unique_values = [rands(10) for _ in range(nunique)]
     return unique_values * repeats
 
 
@@ -3419,16 +3420,20 @@ def _check_to_pandas_memory_unchanged(obj, **kwargs):
 
 def test_to_pandas_split_blocks():
     # ARROW-3789
-    t = pa.table([
-        pa.array([1, 2, 3, 4, 5], type='i1'),
-        pa.array([1, 2, 3, 4, 5], type='i4'),
-        pa.array([1, 2, 3, 4, 5], type='i8'),
-        pa.array([1, 2, 3, 4, 5], type='f4'),
-        pa.array([1, 2, 3, 4, 5], type='f8'),
-        pa.array([1, 2, 3, 4, 5], type='f8'),
-        pa.array([1, 2, 3, 4, 5], type='f8'),
-        pa.array([1, 2, 3, 4, 5], type='f8'),
-    ], ['f{}'.format(i) for i in range(8)])
+    t = pa.table(
+        [
+            pa.array([1, 2, 3, 4, 5], type='i1'),
+            pa.array([1, 2, 3, 4, 5], type='i4'),
+            pa.array([1, 2, 3, 4, 5], type='i8'),
+            pa.array([1, 2, 3, 4, 5], type='f4'),
+            pa.array([1, 2, 3, 4, 5], type='f8'),
+            pa.array([1, 2, 3, 4, 5], type='f8'),
+            pa.array([1, 2, 3, 4, 5], type='f8'),
+            pa.array([1, 2, 3, 4, 5], type='f8'),
+        ],
+        [f'f{i}' for i in range(8)],
+    )
+
 
     _check_blocks_created(t, 8)
     _check_to_pandas_memory_unchanged(t, split_blocks=True)
@@ -3675,8 +3680,7 @@ def random_strings(n, item_size, pct_null=0, dictionary=None):
     if dictionary is not None:
         result = dictionary[np.random.randint(0, len(dictionary), size=n)]
     else:
-        result = np.array([random_ascii(item_size) for i in range(n)],
-                          dtype=object)
+        result = np.array([random_ascii(item_size) for _ in range(n)], dtype=object)
 
     if pct_null > 0:
         result[np.random.rand(n) < pct_null] = None
@@ -3903,11 +3907,7 @@ def test_array_protocol_pandas_extension_types(monkeypatch):
 def _Int64Dtype__from_arrow__(self, array):
     # for test only deal with single chunk for now
     # TODO: do we require handling of chunked arrays in the protocol?
-    if isinstance(array, pa.Array):
-        arr = array
-    else:
-        # ChunkedArray - here only deal with a single chunk for the test
-        arr = array.chunk(0)
+    arr = array if isinstance(array, pa.Array) else array.chunk(0)
     buflist = arr.buffers()
     data = np.frombuffer(buflist[-1], dtype='int64')[
         arr.offset:arr.offset + len(arr)]
@@ -3918,8 +3918,7 @@ def _Int64Dtype__from_arrow__(self, array):
         mask = np.asarray(mask)
     else:
         mask = np.ones(len(arr), dtype=bool)
-    int_arr = pd.arrays.IntegerArray(data.copy(), ~mask, copy=False)
-    return int_arr
+    return pd.arrays.IntegerArray(data.copy(), ~mask, copy=False)
 
 
 def test_convert_to_extension_array(monkeypatch):

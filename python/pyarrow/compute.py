@@ -90,8 +90,6 @@ def _decorate_compute_function(wrapper, exposed_name, func, option_class):
     wrapper.__name__ = exposed_name
     wrapper.__qualname__ = exposed_name
 
-    doc_pieces = []
-
     cpp_doc = func._doc
     summary = cpp_doc.summary
     if not summary:
@@ -102,13 +100,12 @@ def _decorate_compute_function(wrapper, exposed_name, func, option_class):
     description = cpp_doc.description
     arg_names = _get_arg_names(func)
 
-    doc_pieces.append("""\
+    doc_pieces = ["""\
         {}.
 
-        """.format(summary))
-
+        """.format(summary)]
     if description:
-        doc_pieces.append("{}\n\n".format(description))
+        doc_pieces.append(f"{description}\n\n")
 
     doc_pieces.append("""\
         Parameters
@@ -149,8 +146,7 @@ def _get_options_class(func):
     try:
         return globals()[class_name]
     except KeyError:
-        warnings.warn("Python binding for {} not exposed"
-                      .format(class_name), RuntimeWarning)
+        warnings.warn(f"Python binding for {class_name} not exposed", RuntimeWarning)
         return None
 
 
@@ -189,29 +185,32 @@ def _make_generic_wrapper(func_name, func, option_class):
 
 def _make_signature(arg_names, var_arg_names, option_class):
     from inspect import Parameter
-    params = []
-    for name in arg_names:
-        params.append(Parameter(name, Parameter.POSITIONAL_OR_KEYWORD))
-    for name in var_arg_names:
-        params.append(Parameter(name, Parameter.VAR_POSITIONAL))
+    params = [
+        Parameter(name, Parameter.POSITIONAL_OR_KEYWORD) for name in arg_names
+    ]
+
+    params.extend(
+        Parameter(name, Parameter.VAR_POSITIONAL) for name in var_arg_names
+    )
+
     params.append(Parameter("memory_pool", Parameter.KEYWORD_ONLY,
                             default=None))
     if option_class is not None:
         params.append(Parameter("options", Parameter.KEYWORD_ONLY,
                                 default=None))
         options_sig = inspect.signature(option_class)
-        for p in options_sig.parameters.values():
-            # XXX for now, our generic wrappers don't allow positional
-            # option arguments
-            params.append(p.replace(kind=Parameter.KEYWORD_ONLY))
+        params.extend(
+            p.replace(kind=Parameter.KEYWORD_ONLY)
+            for p in options_sig.parameters.values()
+        )
+
     return inspect.Signature(params)
 
 
 def _wrap_function(name, func):
     option_class = _get_options_class(func)
     arg_names = _get_arg_names(func)
-    has_vararg = arg_names and arg_names[-1].startswith('*')
-    if has_vararg:
+    if has_vararg := arg_names and arg_names[-1].startswith('*'):
         var_arg_names = [arg_names.pop().lstrip('*')]
     else:
         var_arg_names = []
@@ -544,10 +543,7 @@ def index(data, value, start=None, end=None, *, memory_pool=None):
     index : the index, or -1 if not found
     """
     if start is not None:
-        if end is not None:
-            data = data.slice(start, end - start)
-        else:
-            data = data.slice(start)
+        data = data.slice(start, end - start) if end is not None else data.slice(start)
     elif end is not None:
         data = data.slice(0, end)
 

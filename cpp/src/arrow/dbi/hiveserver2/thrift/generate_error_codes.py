@@ -233,8 +233,7 @@ error_codes = (
 # Numeric codes must start from 0, be in order and have no gaps
 def check_duplicates(codes):
   constants = {}
-  next_num_code = 0
-  for row in codes:
+  for next_num_code, row in enumerate(codes):
     if row[0] in constants:
       print("Constant %s already used, please check definition of '%s'!" % \
             (row[0], constants[row[0]]))
@@ -243,7 +242,6 @@ def check_duplicates(codes):
       print("Numeric error codes must start from 0, be in order, and not have any gaps: "
             "got %d, expected %d" % (row[1], next_num_code))
       exit(1)
-    next_num_code += 1
     constants[row[0]] = row[2]
 
 preamble = """
@@ -290,4 +288,4 @@ try:
 finally:
   fid.close()
 
-print("%s created." % target_file)
+print(f"{target_file} created.")

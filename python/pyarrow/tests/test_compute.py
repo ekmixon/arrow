@@ -86,10 +86,7 @@ def test_exported_functions():
     assert len(functions) >= 10
     for func in functions:
         arity = func.__arrow_compute_function__['arity']
-        if arity is Ellipsis:
-            args = [object()] * 3
-        else:
-            args = [object()] * arity
+        args = [object()] * 3 if arity is Ellipsis else [object()] * arity
         with pytest.raises(TypeError,
                            match="Got unexpected argument type "
                                  "<class 'object'> for compute function"):
@@ -677,14 +674,14 @@ def test_generated_signatures():
 # implementation.
 @lru_cache()
 def find_new_unicode_codepoints():
-    new = set()
     characters = [chr(c) for c in range(0x80, 0x11000)
                   if not (0xD800 <= c < 0xE000)]
     is_printable = pc.utf8_is_printable(pa.array(characters)).to_pylist()
-    for i, c in enumerate(characters):
-        if is_printable[i] != c.isprintable():
-            new.add(ord(c))
-    return new
+    return {
+        ord(c)
+        for i, c in enumerate(characters)
+        if is_printable[i] != c.isprintable()
+    }
 
 
 # Python claims there are not alpha, not sure why, they are in
@@ -779,7 +776,7 @@ codepoints_ignore = {
                                            'is_space', 'is_upper', ])
 @pytest.mark.parametrize('variant', ['ascii', 'utf8'])
 def test_string_py_compat_boolean(function_name, variant):
-    arrow_name = variant + "_" + function_name
+    arrow_name = f"{variant}_{function_name}"
     py_name = function_name.replace('_', '')
     ignore = codepoints_ignore.get(function_name, set()) | \
         find_new_unicode_codepoints()
@@ -789,10 +786,10 @@ def test_string_py_compat_boolean(function_name, variant):
         # the issues we know of, we skip
         if i in ignore:
             continue
-        # Compare results with the equivalent Python predicate
-        # (except "is_space" where functions are known to be incompatible)
-        c = chr(i)
         if hasattr(pc, arrow_name) and function_name != 'is_space':
+            # Compare results with the equivalent Python predicate
+            # (except "is_space" where functions are known to be incompatible)
+            c = chr(i)
             ar = pa.array([c])
             arrow_func = getattr(pc, arrow_name)
             assert arrow_func(ar)[0].as_py() == getattr(c, py_name)()
@@ -1582,8 +1579,8 @@ def test_strftime():
 
         # Default format plus timezone
         tsa = pa.array(ts, type=pa.timestamp("s", timezone))
-        result = pc.strftime(tsa, options=pc.StrftimeOptions(fmt + "%Z"))
-        expected = pa.array(_fix_timestamp(ts.strftime(fmt + "%Z")))
+        result = pc.strftime(tsa, options=pc.StrftimeOptions(f"{fmt}%Z"))
+        expected = pa.array(_fix_timestamp(ts.strftime(f"{fmt}%Z")))
         assert result.equals(expected)
 
         # Pandas %S is equivalent to %S in arrow for unit="s"
@@ -1616,13 +1613,13 @@ def test_strftime():
 
     assert result.equals(expected)
     with pytest.raises(
-            pa.ArrowInvalid,
-            match="Timezone not present, cannot convert to string"):
-        pc.strftime(tsa, options=pc.StrftimeOptions(fmt + "%Z"))
+                pa.ArrowInvalid,
+                match="Timezone not present, cannot convert to string"):
+        pc.strftime(tsa, options=pc.StrftimeOptions(f"{fmt}%Z"))
     with pytest.raises(
-            pa.ArrowInvalid,
-            match="Timezone not present, cannot convert to string"):
-        pc.strftime(tsa, options=pc.StrftimeOptions(fmt + "%z"))
+                pa.ArrowInvalid,
+                match="Timezone not present, cannot convert to string"):
+        pc.strftime(tsa, options=pc.StrftimeOptions(f"{fmt}%z"))
 
 
 def _check_datetime_components(timestamps, timezone=None):
@@ -1698,9 +1695,6 @@ def test_extract_datetime_components():
                   "2008-12-28",
                   "2008-12-29",
                   "2012-01-01 01:02:03"]
-    timezones = ["UTC", "US/Central", "Asia/Kolkata",
-                 "Etc/GMT-4", "Etc/GMT+4", "Australia/Broken_Hill"]
-
     # Test timezone naive timestamp array
     _check_datetime_components(timestamps)
 
@@ -1711,6 +1705,9 @@ def test_extract_datetime_components():
     elif Version(pd.__version__) < Version('1.0.0'):
         pytest.skip('Pandas < 1.0 extracts time components incorrectly.')
     else:
+        timezones = ["UTC", "US/Central", "Asia/Kolkata",
+                     "Etc/GMT-4", "Etc/GMT+4", "Australia/Broken_Hill"]
+
         for timezone in timezones:
             _check_datetime_components(timestamps, timezone)
 

@@ -108,7 +108,7 @@ class Jira(JIRA):
         return Issue.from_jira(super().issue(key))
 
     def project_issues(self, version, project='ARROW'):
-        query = "project={} AND fixVersion={}".format(project, version)
+        query = f"project={project} AND fixVersion={version}"
         issues = super().search_issues(query, maxResults=False)
         return list(map(Issue.from_jira, issues))
 
@@ -153,10 +153,10 @@ class CommitTitle:
     def __str__(self):
         out = ""
         if self.issue:
-            out += "{}: ".format(self.issue)
+            out += f"{self.issue}: "
         if self.components:
             for component in self.components:
-                out += "[{}]".format(component)
+                out += f"[{component}]"
             out += " "
         out += self.summary
         return out
@@ -178,9 +178,7 @@ class CommitTitle:
     def parse(cls, headline):
         matches = _TITLE_REGEX.match(headline)
         if matches is None:
-            warnings.warn(
-                "Unable to parse commit message `{}`".format(headline)
-            )
+            warnings.warn(f"Unable to parse commit message `{headline}`")
             return CommitTitle(headline)
 
         values = matches.groupdict()
@@ -214,7 +212,7 @@ class Commit:
 
     @property
     def url(self):
-        return 'https://github.com/apache/arrow/commit/{}'.format(self.hexsha)
+        return f'https://github.com/apache/arrow/commit/{self.hexsha}'
 
     @property
     def title(self):
@@ -286,10 +284,7 @@ class Release:
 
         # decide the type of the release based on the version number
         if version.patch == 0:
-            if version.minor == 0:
-                klass = MajorRelease
-            elif version.major == 0:
-                # handle minor releases before 1.0 as major releases
+            if version.minor == 0 or version.major == 0:
                 klass = MajorRelease
             else:
                 klass = MinorRelease
@@ -310,7 +305,7 @@ class Release:
 
     @property
     def tag(self):
-        return "apache-arrow-{}".format(str(self.version))
+        return f"apache-arrow-{str(self.version)}"
 
     @property
     def branch(self):
@@ -340,8 +335,10 @@ class Release:
         # select all non-patch releases
         position = self.siblings.index(self.version)
         if position <= 0:
-            raise ValueError("There is no upcoming release set in JIRA after "
-                             "version {}".format(self.version))
+            raise ValueError(
+                f"There is no upcoming release set in JIRA after version {self.version}"
+            )
+
         upcoming = self.siblings[position - 1]
         return Release.from_jira(upcoming, jira=self.jira, repo=self.repo)
 
@@ -355,23 +352,17 @@ class Release:
         """
         All commits applied between two versions.
         """
-        if self.previous is None:
-            # first release
-            lower = ''
-        else:
-            lower = self.repo.tags[self.previous.tag]
-
+        lower = '' if self.previous is None else self.repo.tags[self.previous.tag]
         if self.version.released:
             upper = self.repo.tags[self.tag]
         else:
             try:
                 upper = self.repo.branches[self.branch]
             except IndexError:
-                warnings.warn("Release branch `{}` doesn't exist."
-                              .format(self.branch))
+                warnings.warn(f"Release branch `{self.branch}` doesn't exist.")
                 return []
 
-        commit_range = "{}..{}".format(lower, upper)
+        commit_range = f"{lower}..{upper}"
         return list(map(Commit, self.repo.iter_commits(commit_range)))
 
     def curate(self):
@@ -399,23 +390,14 @@ class Release:
                                nojira=nojira, parquet=parquet, nopatch=nopatch)
 
     def changelog(self):
-        release_issues = []
-
         # get organized report for the release
         curation = self.curate()
 
-        # jira tickets having patches in the release
-        for issue, _ in curation.within:
-            release_issues.append(issue)
-
+        release_issues = [issue for issue, _ in curation.within]
         # jira tickets without patches
-        for issue in curation.nopatch:
-            release_issues.append(issue)
-
+        release_issues.extend(iter(curation.nopatch))
         # parquet patches in the release
-        for issue, _ in curation.parquet:
-            release_issues.append(issue)
-
+        release_issues.extend(issue for issue, _ in curation.parquet)
         # organize issues into categories
         issue_types = {
             'Bug': 'Bug Fixes',
@@ -447,13 +429,9 @@ class MaintenanceMixin:
         # maintenance branch (the previous major release)
         if self.version.major == 0:
             # treat minor releases as major releases preceeding 1.0.0 release
-            commit_range = "apache-arrow-0.{}.0..master".format(
-                self.version.minor
-            )
+            commit_range = f"apache-arrow-0.{self.version.minor}.0..master"
         else:
-            commit_range = "apache-arrow-{}.0.0..master".format(
-                self.version.major
-            )
+            commit_range = f"apache-arrow-{self.version.major}.0.0..master"
 
         # keeping the original order of the commits helps to minimize the merge
         # conflicts during cherry-picks
@@ -511,7 +489,7 @@ class MinorRelease(Release, MaintenanceMixin):
 
     @property
     def branch(self):
-        return "maint-{}.x.x".format(self.version.major)
+        return f"maint-{self.version.major}.x.x"
 
     @cached_property
     def siblings(self):
@@ -525,7 +503,7 @@ class PatchRelease(Release, MaintenanceMixin):
 
     @property
     def branch(self):
-        return "maint-{}.{}.x".format(self.version.major, self.version.minor)
+        return f"maint-{self.version.major}.{self.version.minor}.x"
 
     @cached_property
     def siblings(self):

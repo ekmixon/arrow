@@ -74,7 +74,7 @@ def do_action(args, client, connection_args={}):
 def push_data(args, client, connection_args={}):
     print('File Name:', args.file)
     my_table = csv.read_csv(args.file)
-    print('Table rows=', str(len(my_table)))
+    print('Table rows=', len(my_table))
     df = my_table.to_pandas()
     print(df.head())
     writer, _ = client.do_put(

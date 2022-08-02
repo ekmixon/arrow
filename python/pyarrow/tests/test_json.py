@@ -61,11 +61,11 @@ def test_read_options():
 
     assert opts.use_threads is True
     opts.use_threads = False
-    assert opts.use_threads is False
+    assert not opts.use_threads
 
     opts = cls(block_size=1234, use_threads=False)
     assert opts.block_size == 1234
-    assert opts.use_threads is False
+    assert not opts.use_threads
 
 
 def test_parse_options():
@@ -75,7 +75,7 @@ def test_parse_options():
     assert opts.explicit_schema is None
 
     opts.newlines_in_values = True
-    assert opts.newlines_in_values is True
+    assert opts.newlines_in_values
 
     schema = pa.schema([pa.field('foo', pa.int32())])
     opts.explicit_schema = schema

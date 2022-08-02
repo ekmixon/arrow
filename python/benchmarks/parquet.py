@@ -66,11 +66,16 @@ class ParquetWriteBinary(object):
         length = 1000000
         num_cols = 10
 
-        unique_values = np.array([rands(value_size) for
-                                  i in range(nuniques)], dtype='O')
+        unique_values = np.array(
+            [rands(value_size) for _ in range(nuniques)], dtype='O'
+        )
+
         values = unique_values[np.random.randint(0, nuniques, size=length)]
-        self.table = pa.table([pa.array(values) for i in range(num_cols)],
-                              names=['f{}'.format(i) for i in range(num_cols)])
+        self.table = pa.table(
+            [pa.array(values) for _ in range(num_cols)],
+            names=[f'f{i}' for i in range(num_cols)],
+        )
+
         self.table_df = self.table.to_pandas()
 
     def time_write_binary_table(self):
@@ -91,7 +96,7 @@ class ParquetWriteBinary(object):
 
 
 def generate_dict_strings(string_size, nunique, length, random_order=True):
-    uniques = np.array([rands(string_size) for i in range(nunique)], dtype='O')
+    uniques = np.array([rands(string_size) for _ in range(nunique)], dtype='O')
     if random_order:
         indices = np.random.randint(0, nunique, size=length).astype('i4')
     else:
@@ -103,9 +108,10 @@ def generate_dict_table(num_cols, string_size, nunique, length,
                         random_order=True):
     data = generate_dict_strings(string_size, nunique, length,
                                  random_order=random_order)
-    return pa.table([
-        data for i in range(num_cols)
-    ], names=['f{}'.format(i) for i in range(num_cols)])
+    return pa.table(
+        [data for _ in range(num_cols)],
+        names=[f'f{i}' for i in range(num_cols)],
+    )
 
 
 class ParquetWriteDictionaries(object):
@@ -141,8 +147,10 @@ class ParquetManyColumns(object):
 
     def setup(self, num_cols):
         num_rows = self.total_cells // num_cols
-        self.table = pa.table({'c' + str(i): np.random.randn(num_rows)
-                               for i in range(num_cols)})
+        self.table = pa.table(
+            {f'c{str(i)}': np.random.randn(num_rows) for i in range(num_cols)}
+        )
+
 
         out = pa.BufferOutputStream()
         pq.write_table(self.table, out)

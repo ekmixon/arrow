@@ -23,7 +23,7 @@ DEFAULT_THRESHOLD = 0.05
 
 def items_per_seconds_fmt(value):
     if value < 1000:
-        return "{} items/sec".format(value)
+        return f"{value} items/sec"
     if value < 1000**2:
         return "{:.3f}K items/sec".format(value / 1000)
     if value < 1000**3:
@@ -34,7 +34,7 @@ def items_per_seconds_fmt(value):
 
 def bytes_per_seconds_fmt(value):
     if value < 1024:
-        return "{} bytes/sec".format(value)
+        return f"{value} bytes/sec"
     if value < 1024**2:
         return "{:.3f} KiB/sec".format(value / 1024)
     if value < 1024**3:
@@ -89,12 +89,7 @@ class BenchmarkComparator:
         new = self.contender.value
         old = self.baseline.value
 
-        if old == 0 and new == 0:
-            return 0.0
-        if old == 0:
-            return 0.0
-
-        return float(new - old) / abs(old)
+        return 0.0 if old == 0 else float(new - old) / abs(old)
 
     @property
     def confidence(self):

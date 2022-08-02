@@ -316,11 +316,10 @@ class TestPlasmaClient:
         def deserialize_or_output(data_tuple):
             if data_tuple[0] == use_meta:
                 return data_tuple[1].to_pybytes()
+            if data_tuple[1] is None:
+                return pa.plasma.ObjectNotAvailable
             else:
-                if data_tuple[1] is None:
-                    return pa.plasma.ObjectNotAvailable
-                else:
-                    return pa.deserialize(data_tuple[1])
+                return pa.deserialize(data_tuple[1])
 
         for value in [b"Bytes Test", temp_id.binary(), 10 * b"\x00", 123]:
             if isinstance(value, bytes):
@@ -832,7 +831,7 @@ class TestPlasmaClient:
         # Also verifies that the right error is thrown, and does not
         # create the object ID prematurely.
         object_id = random_object_id()
-        for i in range(3):
+        for _ in range(3):
             with pytest.raises(pa.plasma.PlasmaStoreFull):
                 self.plasma_client2.create(
                     object_id, DEFAULT_PLASMA_STORE_MEMORY + SMALL_OBJECT_SIZE)
@@ -927,11 +926,11 @@ class TestEvictionToExternalStore:
     def test_eviction(self):
         client = self.plasma_client
 
-        object_ids = [random_object_id() for _ in range(0, 20)]
+        object_ids = [random_object_id() for _ in range(20)]
         data = b'x' * 100 * 1024
         metadata = b''
 
-        for i in range(0, 20):
+        for i in range(20):
             # Test for object non-existence.
             assert not client.contains(object_ids[i])
 
@@ -941,7 +940,7 @@ class TestEvictionToExternalStore:
             # Test that the client can get the object.
             assert client.contains(object_ids[i])
 
-        for i in range(0, 20):
+        for i in range(20):
             # Since we are accessing objects sequentially, every object we
             # access would be a cache "miss" owing to LRU eviction.
             # Try and access the object from the plasma store first, and then

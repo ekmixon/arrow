@@ -63,10 +63,10 @@ class SimplePlasmaLatency(object):
         self.plasma_store_ctx.__exit__(None, None, None)
 
     def time_plasma_put(self):
-        for i in range(1000):
+        for _ in range(1000):
             self.plasma_client.put(1)
 
     def time_plasma_putget(self):
-        for i in range(1000):
+        for _ in range(1000):
             x = self.plasma_client.put(1)
             self.plasma_client.get(x)

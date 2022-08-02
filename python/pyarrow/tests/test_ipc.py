@@ -56,7 +56,7 @@ class IpcFixture:
         writer = self._get_writer(self.sink, schema)
 
         batches = []
-        for i in range(num_batches):
+        for _ in range(num_batches):
             batch = pa.record_batch(
                 [np.random.randn(nrows),
                  ['foo', None, 'bar', 'bazbaz', 'qux']],
@@ -367,10 +367,10 @@ def test_write_options():
     assert options.metadata_version == pa.ipc.MetadataVersion.V5
 
     options.allow_64bit = True
-    assert options.allow_64bit is True
+    assert options.allow_64bit
 
     options.use_legacy_format = True
-    assert options.use_legacy_format is True
+    assert options.use_legacy_format
 
     options.metadata_version = pa.ipc.MetadataVersion.V4
     assert options.metadata_version == pa.ipc.MetadataVersion.V4
@@ -393,7 +393,7 @@ def test_write_options():
 
     assert options.use_threads is True
     options.use_threads = False
-    assert options.use_threads is False
+    assert not options.use_threads
 
     if pa.Codec.is_available('lz4'):
         options = pa.ipc.IpcWriteOptions(
@@ -403,10 +403,10 @@ def test_write_options():
             compression='lz4',
             use_threads=False)
         assert options.metadata_version == pa.ipc.MetadataVersion.V4
-        assert options.allow_64bit is True
-        assert options.use_legacy_format is True
+        assert options.allow_64bit
+        assert options.use_legacy_format
         assert options.compression == 'lz4'
-        assert options.use_threads is False
+        assert not options.use_threads
 
 
 def test_write_options_legacy_exclusive(stream_fixture):
@@ -663,7 +663,7 @@ class StreamReaderServer(threading.Thread):
             if self._do_read_all:
                 self._table = reader.read_all()
             else:
-                for i, batch in enumerate(reader):
+                for batch in reader:
                     self._batches.append(batch)
         finally:
             connection.close()

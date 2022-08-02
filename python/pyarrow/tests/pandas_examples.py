@@ -93,9 +93,8 @@ def dataframe_with_lists(include_index=False, parquet_compatible=False):
         Exclude types not supported by parquet
     """
     arrays = OrderedDict()
-    fields = []
+    fields = [pa.field('int64', pa.list_(pa.int64()))]
 
-    fields.append(pa.field('int64', pa.list_(pa.int64())))
     arrays['int64'] = [
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         [0, 1, 2, 3, 4],
@@ -157,7 +156,7 @@ def dataframe_with_lists(include_index=False, parquet_compatible=False):
         ]
 
     for value_type, data in temporal_pairs:
-        field_name = '{}_list'.format(value_type)
+        field_name = f'{value_type}_list'
         field_type = pa.list_(value_type)
         field = pa.field(field_name, field_type)
         fields.append(field)

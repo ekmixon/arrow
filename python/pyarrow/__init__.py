@@ -326,7 +326,7 @@ open_file = _deprecate_api("open_file", "ipc.open_file", ipc.open_file,
 
 
 def _deprecate_scalar(ty, symbol):
-    return _deprecate_class("{}Value".format(ty), symbol, "1.0.0")
+    return _deprecate_class(f"{ty}Value", symbol, "1.0.0")
 
 
 ArrayValue = _deprecate_class("ArrayValue", Scalar, "1.0.0")

@@ -75,7 +75,6 @@ def test_basics(value, ty, klass, deprecated):
     assert s == pa.scalar(value, type=ty)
     assert s != value
     assert s != "else"
-    assert hash(s) == hash(s)
     assert s.is_valid is True
     assert s != None  # noqa: E711
     with pytest.warns(FutureWarning):
@@ -107,8 +106,8 @@ def test_nulls():
     assert null is pa.NA
     assert null.as_py() is None
     assert null != "something"
-    assert (null == pa.scalar(None)) is True
-    assert (null == 0) is False
+    assert null == pa.scalar(None)
+    assert null != 0
     assert pa.NA == pa.NA
     assert pa.NA not in [5]
 
@@ -262,18 +261,18 @@ def test_timestamp():
 
     units = ['ns', 'us', 'ms', 's']
 
+    tz = 'America/New_York'
     for i, unit in enumerate(units):
-        dtype = 'datetime64[{}]'.format(unit)
+        dtype = f'datetime64[{unit}]'
         arrow_arr = pa.Array.from_pandas(arr.astype(dtype))
         expected = pd.Timestamp('2000-01-01 12:34:56')
 
         assert arrow_arr[0].as_py() == expected
         assert arrow_arr[0].value * 1000**i == expected.value
 
-        tz = 'America/New_York'
         arrow_type = pa.timestamp(unit, tz=tz)
 
-        dtype = 'datetime64[{}]'.format(unit)
+        dtype = f'datetime64[{unit}]'
         arrow_arr = pa.Array.from_pandas(arr.astype(dtype), type=arrow_type)
         expected = (pd.Timestamp('2000-01-01 12:34:56')
                     .tz_localize('utc')
@@ -327,7 +326,7 @@ def test_duration():
     units = ['us', 'ms', 's']
 
     for i, unit in enumerate(units):
-        dtype = 'timedelta64[{}]'.format(unit)
+        dtype = f'timedelta64[{unit}]'
         arrow_arr = pa.array(arr.astype(dtype))
         expected = datetime.timedelta(seconds=60*60)
         assert isinstance(arrow_arr[1].as_py(), datetime.timedelta)

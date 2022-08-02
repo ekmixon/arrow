@@ -48,12 +48,12 @@ class RustTester(Tester):
         cmd = [self.RUST_INTEGRATION_EXE, '--integration']
 
         if arrow_path is not None:
-            cmd.append('--arrow=' + arrow_path)
+            cmd.append(f'--arrow={arrow_path}')
 
         if json_path is not None:
-            cmd.append('--json=' + json_path)
+            cmd.append(f'--json={json_path}')
 
-        cmd.append('--mode=' + command)
+        cmd.append(f'--mode={command}')
 
         if self.debug:
             log(' '.join(cmd))
@@ -90,19 +90,16 @@ class RustTester(Tester):
                 server.kill()
                 out, err = server.communicate()
                 raise RuntimeError(
-                    "Flight-Rust server did not start properly, "
-                    "stdout:\n{}\n\nstderr:\n{}\n"
-                    .format(output + out.decode(), err.decode()))
-            port = int(output.split(":")[1])
-            yield port
+                    f"Flight-Rust server did not start properly, stdout:\n{output + out.decode()}\n\nstderr:\n{err.decode()}\n"
+                )
+
+            yield int(output.split(":")[1])
         finally:
             server.kill()
             server.wait(5)
 
     def flight_request(self, port, json_path=None, scenario_name=None):
-        cmd = self.FLIGHT_CLIENT_CMD + [
-            '--port=' + str(port),
-        ]
+        cmd = (self.FLIGHT_CLIENT_CMD + [f'--port={str(port)}'])
         if json_path:
             cmd.extend(('--path', json_path))
         elif scenario_name:

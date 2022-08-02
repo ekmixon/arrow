@@ -93,20 +93,16 @@ class GoTester(Tester):
                 server.kill()
                 out, err = server.communicate()
                 raise RuntimeError(
-                    "Flight-Go server did not start properly, "
-                    "stdout: \n{}\n\nstderr:\n{}\n"
-                    .format(output + out.decode(), err.decode())
+                    f"Flight-Go server did not start properly, stdout: \n{output + out.decode()}\n\nstderr:\n{err.decode()}\n"
                 )
-            port = int(output.split(":")[1])
-            yield port
+
+            yield int(output.split(":")[1])
         finally:
             server.kill()
             server.wait(5)
 
     def flight_request(self, port, json_path=None, scenario_name=None):
-        cmd = self.FLIGHT_CLIENT_CMD + [
-            '-port=' + str(port),
-        ]
+        cmd = (self.FLIGHT_CLIENT_CMD + [f'-port={str(port)}'])
         if json_path:
             cmd.extend(('-path', json_path))
         elif scenario_name:

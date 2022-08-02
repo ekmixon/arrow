@@ -83,7 +83,7 @@ def run_cmd(cmd):
         output = subprocess.check_output(cmd)
     except subprocess.CalledProcessError as e:
         # this avoids hiding the stdout / stderr of failed processes
-        print('Command failed: %s' % cmd)
+        print(f'Command failed: {cmd}')
         print('With output:')
         print('--------------')
         print(e.output)
@@ -99,15 +99,15 @@ original_head = run_cmd("git rev-parse HEAD")[:8]
 
 
 def clean_up():
-    print("Restoring head pointer to %s" % original_head)
-    run_cmd("git checkout %s" % original_head)
+    print(f"Restoring head pointer to {original_head}")
+    run_cmd(f"git checkout {original_head}")
 
     branches = run_cmd("git branch").replace(" ", "").split("\n")
 
     for branch in [x for x in branches
                    if x.startswith(BRANCH_PREFIX)]:
-        print("Deleting local branch %s" % branch)
-        run_cmd("git branch -D %s" % branch)
+        print(f"Deleting local branch {branch}")
+        run_cmd(f"git branch -D {branch}")
 
 
 _REGEX_CI_DIRECTIVE = re.compile(r'\[[^\]]*\]')
@@ -120,19 +120,18 @@ def strip_ci_directives(commit_message):
 
 
 def fix_version_from_branch(branch, versions):
-    # Note: Assumes this is a sorted (newest->oldest) list of un-released
-    # versions
     if branch == "master":
         return versions[-1]
-    else:
-        branch_ver = branch.replace("branch-", "")
-        return [x for x in versions if x.name.startswith(branch_ver)][-1]
+    branch_ver = branch.replace("branch-", "")
+    return [x for x in versions if x.name.startswith(branch_ver)][-1]
 
 
 # We can merge both ARROW and PARQUET patchesa
 SUPPORTED_PROJECTS = ['ARROW', 'PARQUET']
-PR_TITLE_REGEXEN = [(project, re.compile(r'^(' + project + r'-[0-9]+)\b.*$'))
-                    for project in SUPPORTED_PROJECTS]
+PR_TITLE_REGEXEN = [
+    (project, re.compile(f'^({project}' + r'-[0-9]+)\b.*$'))
+    for project in SUPPORTED_PROJECTS
+]
 
 
 class JiraIssue(object):
@@ -191,12 +190,12 @@ class JiraIssue(object):
         fields = self.issue.fields
         cur_status = fields.status.name
 
-        if cur_status == "Resolved" or cur_status == "Closed":
+        if cur_status in ["Resolved", "Closed"]:
             self.cmd.fail("JIRA issue %s already has status '%s'"
                           % (self.jira_id, cur_status))
 
         if DEBUG:
-            print("JIRA issue %s untouched" % (self.jira_id))
+            print(f"JIRA issue {self.jira_id} untouched")
             return
 
         resolve = [x for x in self.jira_con.transitions(self.jira_id)
@@ -205,7 +204,7 @@ class JiraIssue(object):
         # ARROW-6915: do not overwrite existing fix versions corresponding to
         # point releases
         fix_versions = list(fix_versions)
-        fix_version_names = set(x['name'] for x in fix_versions)
+        fix_version_names = {x['name'] for x in fix_versions}
         for version in self.current_fix_versions:
             major, minor, patch = version.name.split('.')
             if patch != '0' and version.name not in fix_version_names:
@@ -215,7 +214,7 @@ class JiraIssue(object):
                                        comment=comment,
                                        fixVersions=fix_versions)
 
-        print("Successfully resolved %s!" % (self.jira_id))
+        print(f"Successfully resolved {self.jira_id}!")
 
         self.issue = self.jira_con.issue(self.jira_id)
         self.show()
@@ -228,11 +227,7 @@ class JiraIssue(object):
 
 
 def format_jira_output(jira_id, status, summary, assignee, components):
-    if assignee is None:
-        assignee = "NOT ASSIGNED!!!"
-    else:
-        assignee = assignee.displayName
-
+    assignee = "NOT ASSIGNED!!!" if assignee is None else assignee.displayName
     if len(components) == 0:
         components = 'NO COMPONENTS!!!'
     else:
@@ -253,15 +248,13 @@ class GitHubAPI(object):
         self.github_api = ("https://api.github.com/repos/apache/{0}"
                            .format(project_name))
 
-        token = os.environ.get('ARROW_GITHUB_API_TOKEN', None)
-        if token:
+        if token := os.environ.get('ARROW_GITHUB_API_TOKEN', None):
             self.headers = {'Authorization': 'token {0}'.format(token)}
         else:
             self.headers = None
 
     def get_pr_data(self, number):
-        return get_json("%s/pulls/%s" % (self.github_api, number),
-                        headers=self.headers)
+        return get_json(f"{self.github_api}/pulls/{number}", headers=self.headers)
 
 
 class CommandInput(object):
@@ -308,7 +301,7 @@ class PullRequest(object):
         except KeyError:
             pprint.pprint(self._pr_data)
             raise
-        self.description = "%s/%s" % (self.user_login, self.base_ref)
+        self.description = f"{self.user_login}/{self.base_ref}"
 
         self.jira_issue = self._get_jira()
 
@@ -335,8 +328,7 @@ class PullRequest(object):
 
         jira_id = None
         for project, regex in PR_TITLE_REGEXEN:
-            m = regex.search(self.title)
-            if m:
+            if m := regex.search(self.title):
                 jira_id = m.group(1)
                 break
 
@@ -352,16 +344,17 @@ class PullRequest(object):
         """
         merge the requested PR and return the merge hash
         """
-        pr_branch_name = "%s_MERGE_PR_%s" % (BRANCH_PREFIX, self.number)
-        target_branch_name = "%s_MERGE_PR_%s_%s" % (BRANCH_PREFIX,
-                                                    self.number,
-                                                    self.target_ref.upper())
-        run_cmd("git fetch %s pull/%s/head:%s" % (self.git_remote,
-                                                  self.number,
-                                                  pr_branch_name))
-        run_cmd("git fetch %s %s:%s" % (self.git_remote, self.target_ref,
-                                        target_branch_name))
-        run_cmd("git checkout %s" % target_branch_name)
+        pr_branch_name = f"{BRANCH_PREFIX}_MERGE_PR_{self.number}"
+        target_branch_name = (
+            f"{BRANCH_PREFIX}_MERGE_PR_{self.number}_{self.target_ref.upper()}"
+        )
+
+        run_cmd(
+            f"git fetch {self.git_remote} pull/{self.number}/head:{pr_branch_name}"
+        )
+
+        run_cmd(f"git fetch {self.git_remote} {self.target_ref}:{target_branch_name}")
+        run_cmd(f"git checkout {target_branch_name}")
 
         had_conflicts = False
         try:
@@ -375,14 +368,16 @@ class PullRequest(object):
             self.cmd.continue_maybe(msg)
             had_conflicts = True
 
-        commit_authors = run_cmd(['git', 'log', 'HEAD..%s' % pr_branch_name,
-                                 '--pretty=format:%an <%ae>']).split("\n")
+        commit_authors = run_cmd(
+            ['git', 'log', f'HEAD..{pr_branch_name}', '--pretty=format:%an <%ae>']
+        ).split("\n")
+
         distinct_authors = sorted(set(commit_authors),
                                   key=lambda x: commit_authors.count(x),
                                   reverse=True)
 
         for i, author in enumerate(distinct_authors):
-            print("Author {}: {}".format(i + 1, author))
+            print(f"Author {i + 1}: {author}")
 
         if len(distinct_authors) > 1:
             primary_author, distinct_authors = get_primary_author(
@@ -402,12 +397,13 @@ class PullRequest(object):
 
         authors = ("Authored-by:" if len(distinct_authors) == 1
                    else "Lead-authored-by:")
-        authors += " %s" % (distinct_authors.pop(0))
+        authors += f" {distinct_authors.pop(0)}"
         if len(distinct_authors) > 0:
-            authors += "\n" + "\n".join(["Co-authored-by: %s" % a
-                                         for a in distinct_authors])
-        authors += "\n" + "Signed-off-by: %s <%s>" % (committer_name,
-                                                      committer_email)
+            authors += "\n" + "\n".join(
+                [f"Co-authored-by: {a}" for a in distinct_authors]
+            )
+
+        authors += ("\n" + f"Signed-off-by: {committer_name} <{committer_email}>")
 
         if had_conflicts:
             committer_name = run_cmd("git config --get user.name").strip()
@@ -419,10 +415,7 @@ class PullRequest(object):
 
         # The string "Closes #%s" string is required for GitHub to correctly
         # close the PR
-        merge_message_flags += [
-            "-m",
-            "Closes #%s from %s"
-            % (self.number, self.description)]
+        merge_message_flags += ["-m", f"Closes #{self.number} from {self.description}"]
         merge_message_flags += ["-m", authors]
 
         if DEBUG:
@@ -433,25 +426,25 @@ class PullRequest(object):
                  '--author="%s"' % primary_author] +
                 merge_message_flags)
 
-        self.cmd.continue_maybe("Merge complete (local ref %s). Push to %s?"
-                                % (target_branch_name, self.git_remote))
+        self.cmd.continue_maybe(
+            f"Merge complete (local ref {target_branch_name}). Push to {self.git_remote}?"
+        )
+
 
         try:
-            push_cmd = ('git push %s %s:%s' % (self.git_remote,
-                                               target_branch_name,
-                                               self.target_ref))
+            push_cmd = f'git push {self.git_remote} {target_branch_name}:{self.target_ref}'
             if DEBUG:
                 print(push_cmd)
             else:
                 run_cmd(push_cmd)
         except Exception as e:
             clean_up()
-            self.cmd.fail("Exception while pushing: %s" % e)
+            self.cmd.fail(f"Exception while pushing: {e}")
 
-        merge_hash = run_cmd("git rev-parse %s" % target_branch_name)[:8]
+        merge_hash = run_cmd(f"git rev-parse {target_branch_name}")[:8]
         clean_up()
-        print("Pull request #%s merged!" % self.number)
-        print("Merge hash: %s" % merge_hash)
+        print(f"Pull request #{self.number} merged!")
+        print(f"Merge hash: {merge_hash}")
         return merge_hash
 
 
@@ -468,7 +461,7 @@ def get_primary_author(cmd, distinct_authors):
 
         if author_pat.match(primary_author):
             break
-        print('Bad author "{}", please try again'.format(primary_author))
+        print(f'Bad author "{primary_author}", please try again')
 
     # When primary author is specified manually, de-dup it from
     # author list and put it at the head of author list.
@@ -561,8 +554,8 @@ def cli():
     # Location of your Arrow git clone
     ARROW_HOME = os.path.abspath(os.path.dirname(__file__))
     PROJECT_NAME = os.environ.get('ARROW_PROJECT_NAME') or 'arrow'
-    print("ARROW_HOME = " + ARROW_HOME)
-    print("PROJECT_NAME = " + PROJECT_NAME)
+    print(f"ARROW_HOME = {ARROW_HOME}")
+    print(f"PROJECT_NAME = {PROJECT_NAME}")
 
     cmd = CommandInput()
 
@@ -586,7 +579,7 @@ def cli():
 
     pr.show()
 
-    cmd.continue_maybe("Proceed with merging pull request #%s?" % pr_num)
+    cmd.continue_maybe(f"Proceed with merging pull request #{pr_num}?")
 
     # merged hash not used
     pr.merge()
@@ -596,11 +589,12 @@ def cli():
         return
 
     cmd.continue_maybe("Would you like to update the associated JIRA?")
-    jira_comment = (
-        "Issue resolved by pull request %s\n[%s/%s]"
-        % (pr_num,
-           "https://github.com/apache/" + PROJECT_NAME + "/pull",
-           pr_num))
+    jira_comment = "Issue resolved by pull request %s\n[%s/%s]" % (
+        pr_num,
+        f"https://github.com/apache/{PROJECT_NAME}/pull",
+        pr_num,
+    )
+
 
     fix_versions_json = prompt_for_fix_version(cmd, pr.jira_issue)
     pr.jira_issue.resolve(fix_versions_json, jira_comment)

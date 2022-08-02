@@ -68,18 +68,14 @@ def _filesystem_from_str(uri):
     # instantiate the file system from an uri, if the uri has a path
     # component then it will be treated as a path prefix
     filesystem, prefix = FileSystem.from_uri(uri)
-    prefix = filesystem.normalize_path(prefix)
-    if prefix:
+    if prefix := filesystem.normalize_path(prefix):
         # validate that the prefix is pointing to a directory
         prefix_info = filesystem.get_file_info([prefix])[0]
         if prefix_info.type != FileType.Directory:
             raise ValueError(
-                "The path component of the filesystem URI must point to a "
-                "directory but it has a type: `{}`. The path component "
-                "is `{}` and the given filesystem URI is `{}`".format(
-                    prefix_info.type.name, prefix_info.path, uri
-                )
+                f"The path component of the filesystem URI must point to a directory but it has a type: `{prefix_info.type.name}`. The path component is `{prefix_info.path}` and the given filesystem URI is `{uri}`"
             )
+
         filesystem = SubTreeFileSystem(prefix, filesystem)
     return filesystem
 
@@ -119,9 +115,7 @@ def _ensure_filesystem(
         return filesystem
 
     raise TypeError(
-        "Unrecognized filesystem: {}. `filesystem` argument must be a "
-        "FileSystem instance or a valid file system URI'".format(
-            type(filesystem))
+        f"Unrecognized filesystem: {type(filesystem)}. `filesystem` argument must be a FileSystem instance or a valid file system URI'"
     )
 
 
@@ -241,25 +235,19 @@ class FSSpecHandler(FileSystemHandler):
         if not self.fs.isdir(selector.base_dir):
             if self.fs.exists(selector.base_dir):
                 raise NotADirectoryError(selector.base_dir)
+            if selector.allow_not_found:
+                return []
             else:
-                if selector.allow_not_found:
-                    return []
-                else:
-                    raise FileNotFoundError(selector.base_dir)
+                raise FileNotFoundError(selector.base_dir)
 
-        if selector.recursive:
-            maxdepth = None
-        else:
-            maxdepth = 1
-
-        infos = []
+        maxdepth = None if selector.recursive else 1
         selected_files = self.fs.find(
             selector.base_dir, maxdepth=maxdepth, withdirs=True, detail=True
         )
-        for path, info in selected_files.items():
-            infos.append(self._create_file_info(path, info))
-
-        return infos
+        return [
+            self._create_file_info(path, info)
+            for path, info in selected_files.items()
+        ]
 
     def create_dir(self, path, recursive):
         # mkdir also raises FileNotFoundError when base directory is not found

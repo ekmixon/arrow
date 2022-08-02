@@ -199,7 +199,7 @@ def test_to_numpy_writable():
 @pytest.mark.parametrize('unit', ['s', 'ms', 'us', 'ns'])
 def test_to_numpy_datetime64(unit):
     arr = pa.array([1, 2, 3], pa.timestamp(unit))
-    expected = np.array([1, 2, 3], dtype="datetime64[{}]".format(unit))
+    expected = np.array([1, 2, 3], dtype=f"datetime64[{unit}]")
     np_arr = arr.to_numpy()
     np.testing.assert_array_equal(np_arr, expected)
 
@@ -207,7 +207,7 @@ def test_to_numpy_datetime64(unit):
 @pytest.mark.parametrize('unit', ['s', 'ms', 'us', 'ns'])
 def test_to_numpy_timedelta64(unit):
     arr = pa.array([1, 2, 3], pa.duration(unit))
-    expected = np.array([1, 2, 3], dtype="timedelta64[{}]".format(unit))
+    expected = np.array([1, 2, 3], dtype=f"timedelta64[{unit}]")
     np_arr = arr.to_numpy()
     np.testing.assert_array_equal(np_arr, expected)
 
@@ -226,14 +226,14 @@ def test_to_pandas_zero_copy():
 
     arr = pa.array(range(10))
 
-    for i in range(10):
+    for _ in range(10):
         series = arr.to_pandas()
         assert sys.getrefcount(series) == 2
         series = None  # noqa
 
     assert sys.getrefcount(arr) == 2
 
-    for i in range(10):
+    for _ in range(10):
         arr = pa.array(range(10))
         series = arr.to_pandas()
         arr = None
@@ -256,7 +256,7 @@ def test_asarray():
     arr = pa.array(range(4))
 
     # The iterator interface gives back an array of Int64Value's
-    np_arr = np.asarray([_ for _ in arr])
+    np_arr = np.asarray(list(arr))
     assert np_arr.tolist() == [0, 1, 2, 3]
     assert np_arr.dtype == np.dtype('O')
     assert type(np_arr[0]) == pa.lib.Int64Value
@@ -422,13 +422,12 @@ def test_array_slice():
     assert arr[-5:].equals(arr.slice(len(arr) - 5))
 
     n = len(arr)
-    for start in range(-n * 2, n * 2):
-        for stop in range(-n * 2, n * 2):
-            res = arr[start:stop]
-            res.validate()
-            expected = arr.to_pylist()[start:stop]
-            assert res.to_pylist() == expected
-            assert res.to_numpy().tolist() == expected
+    for start, stop in itertools.product(range(-n * 2, n * 2), range(-n * 2, n * 2)):
+        res = arr[start:stop]
+        res.validate()
+        expected = arr.to_pylist()[start:stop]
+        assert res.to_pylist() == expected
+        assert res.to_numpy().tolist() == expected
 
 
 def test_array_slice_negative_step():
@@ -524,13 +523,13 @@ def test_array_eq():
     arr2 = pa.array([1, 2, 3], type=pa.int32())
     arr3 = pa.array([1, 2, 3], type=pa.int64())
 
-    assert (arr1 == arr2) is True
-    assert (arr1 != arr2) is False
-    assert (arr1 == arr3) is False
-    assert (arr1 != arr3) is True
+    assert arr1 == arr2
+    assert arr1 == arr2
+    assert arr1 != arr3
+    assert arr1 != arr3
 
-    assert (arr1 == 1) is False
-    assert (arr1 == None) is False  # noqa: E711
+    assert arr1 != 1
+    assert arr1 is not None
 
 
 def test_array_from_buffers():
@@ -1412,9 +1411,9 @@ def test_decimal_to_int_non_integer():
         ),
     ]
 
+    # test safe casting raises
+    msg_regexp = 'Rescaling Decimal128 value would cause data loss'
     for case in non_integer_cases:
-        # test safe casting raises
-        msg_regexp = 'Rescaling Decimal128 value would cause data loss'
         with pytest.raises(pa.ArrowInvalid, match=msg_regexp):
             _check_cast_case(case)
 
@@ -1788,22 +1787,7 @@ def test_date64_from_builtin_datetime():
     assert as_i8[0].as_py() == as_i8[1].as_py()
 
 
-@pytest.mark.parametrize(('ty', 'values'), [
-    ('bool', [True, False, True]),
-    ('uint8', range(0, 255)),
-    ('int8', range(0, 128)),
-    ('uint16', range(0, 10)),
-    ('int16', range(0, 10)),
-    ('uint32', range(0, 10)),
-    ('int32', range(0, 10)),
-    ('uint64', range(0, 10)),
-    ('int64', range(0, 10)),
-    ('float', [0.0, 0.1, 0.2]),
-    ('double', [0.0, 0.1, 0.2]),
-    ('string', ['a', 'b', 'c']),
-    ('binary', [b'a', b'b', b'c']),
-    (pa.binary(3), [b'abc', b'bcd', b'cde'])
-])
+@pytest.mark.parametrize(('ty', 'values'), [('bool', [True, False, True]), ('uint8', range(255)), ('int8', range(128)), ('uint16', range(10)), ('int16', range(10)), ('uint32', range(10)), ('int32', range(10)), ('uint64', range(10)), ('int64', range(10)), ('float', [0.0, 0.1, 0.2]), ('double', [0.0, 0.1, 0.2]), ('string', ['a', 'b', 'c']), ('binary', [b'a', b'b', b'c']), (pa.binary(3), [b'abc', b'bcd', b'cde'])])
 def test_cast_identities(ty, values):
     arr = pa.array(values, type=ty)
     assert arr.cast(ty).equals(arr)
@@ -1831,7 +1815,7 @@ def test_array_pickle(data, typ):
     # Allocate here so that we don't have any Arrow data allocated.
     # This is needed to ensure that allocator tests can be reliable.
     array = pa.array(data, type=typ)
-    for proto in range(0, pickle.HIGHEST_PROTOCOL + 1):
+    for proto in range(pickle.HIGHEST_PROTOCOL + 1):
         result = pickle.loads(pickle.dumps(array, proto))
         assert array.equals(result)
 
@@ -1840,7 +1824,7 @@ def test_array_pickle_dictionary():
     # not included in the above as dictionary array cannot be created with
     # the pa.array function
     array = pa.DictionaryArray.from_arrays([0, 1, 2, 0, 1], ['a', 'b', 'c'])
-    for proto in range(0, pickle.HIGHEST_PROTOCOL + 1):
+    for proto in range(pickle.HIGHEST_PROTOCOL + 1):
         result = pickle.loads(pickle.dumps(array, proto))
         assert array.equals(result)
 

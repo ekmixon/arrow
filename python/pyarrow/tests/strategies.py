@@ -127,10 +127,7 @@ metadata = st.dictionaries(st.text(), st.text())
 def fields(draw, type_strategy=primitive_types):
     name = draw(custom_text)
     typ = draw(type_strategy)
-    if pa.types.is_null(typ):
-        nullable = True
-    else:
-        nullable = draw(st.booleans())
+    nullable = True if pa.types.is_null(typ) else draw(st.booleans())
     meta = draw(metadata)
     return pa.field(name, type=typ, nullable=nullable, metadata=meta)
 

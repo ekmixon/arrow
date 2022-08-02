@@ -28,10 +28,7 @@ class DotDict(dict):
             item = self[key]
         except KeyError:
             raise AttributeError(key)
-        if isinstance(item, dict):
-            return DotDict(item)
-        else:
-            return item
+        return DotDict(item) if isinstance(item, dict) else item
 
 
 class PartialEnv(dict):

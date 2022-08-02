@@ -123,7 +123,7 @@ def merge(object_ids):
     # Filter out empty arrays.
     arrays = [a for a in arrays if a.shape[0] > 0]
 
-    if len(arrays) == 0:
+    if not arrays:
         return None
 
     resulting_array = multimerge.multimerge2d(*arrays)
@@ -180,8 +180,7 @@ if __name__ == '__main__':
     # Stop timing the paralle sort example.
     parallel_sort_end = time.time()
 
-    print('Parallel sort took {} seconds.'
-          .format(parallel_sort_end - parallel_sort_start))
+    print(f'Parallel sort took {parallel_sort_end - parallel_sort_start} seconds.')
 
     serial_sort_start = time.time()
 
@@ -194,8 +193,7 @@ if __name__ == '__main__':
     sorted_dfs = get_dfs(resulting_ids)
     sorted_df = pd.concat(sorted_dfs)
 
-    print('Serial sort took {} seconds.'
-          .format(serial_sort_end - serial_sort_start))
+    print(f'Serial sort took {serial_sort_end - serial_sort_start} seconds.')
 
     assert np.allclose(sorted_df.values, original_sorted_df.values)
 

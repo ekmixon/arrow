@@ -99,14 +99,6 @@ def test_from_object(c, dtype, size):
             arr2 = np.frombuffer(cbuf2.copy_to_host(), dtype=dtype)
             np.testing.assert_equal(arr[s], arr2)
 
-        # cannot test negative strides due to numba bug, see its issue 3705
-        if 0:
-            rdarr = darr[::-1]
-            cbuf2 = ctx.buffer_from_object(rdarr)
-            assert cbuf2.size == cbuf.size
-            arr2 = np.frombuffer(cbuf2.copy_to_host(), dtype=dtype)
-            np.testing.assert_equal(arr, arr2)
-
         with pytest.raises(ValueError,
                            match=('array data is non-contiguous')):
             ctx.buffer_from_object(darr[::2])
@@ -138,8 +130,6 @@ def test_from_object(c, dtype, size):
                            match=('array data is non-contiguous')):
             ctx.buffer_from_object(darr.reshape(s1, s2, s3)[::2])
 
-    # Creating device buffer from am object implementing cuda array
-    # interface:
     class MyObj:
         def __init__(self, darr):
             self.darr = darr

@@ -48,9 +48,7 @@ class ArrowSources:
         path = Path(path)
         # validate by checking a specific path in the arrow source tree
         if not (path / 'cpp' / 'CMakeLists.txt').exists():
-            raise InvalidArrowSource(
-                "No Arrow C++ sources found in {}.".format(path)
-            )
+            raise InvalidArrowSource(f"No Arrow C++ sources found in {path}.")
         self.path = path
 
     @property
@@ -101,9 +99,9 @@ class ArrowSources:
     def archive(self, path, dereference=False, compressor=None, revision=None):
         """ Saves a git archive at path. """
         if not self.git_backed:
-            raise ValueError("{} is not backed by git".format(self))
+            raise ValueError(f"{self} is not backed by git")
 
-        rev = revision if revision else "HEAD"
+        rev = revision or "HEAD"
         archive = git.archive("--prefix=apache-arrow/", rev,
                               git_dir=self.path)
 
@@ -135,7 +133,7 @@ class ArrowSources:
                     Path to checkout the local clone.
         """
         if not self.git_backed:
-            raise ValueError("{} is not backed by git".format(self))
+            raise ValueError(f"{self} is not backed by git")
 
         if revision == ArrowSources.WORKSPACE:
             return self, False
@@ -201,10 +199,9 @@ class ArrowSources:
             except InvalidArrowSource:
                 pass
 
-        searched_paths = "\n".join([" - {}".format(p) for p in paths])
+        searched_paths = "\n".join([f" - {p}" for p in paths])
         raise InvalidArrowSource(
-            "Unable to locate Arrow's source directory. "
-            "Searched paths are:\n{}".format(searched_paths)
+            f"Unable to locate Arrow's source directory. Searched paths are:\n{searched_paths}"
         )
 
     def __repr__(self):

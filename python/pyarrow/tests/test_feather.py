@@ -134,11 +134,12 @@ def _assert_error_on_write(df, exc, path=None, version=2):
 def test_dataset(version):
     num_values = (100, 100)
     num_files = 5
-    paths = [random_path() for i in range(num_files)]
+    paths = [random_path() for _ in range(num_files)]
     data = {
-        "col_" + str(i): np.random.randn(num_values[0])
+        f"col_{str(i)}": np.random.randn(num_values[0])
         for i in range(num_values[1])
     }
+
     table = pa.table(data)
 
     TEST_FILES.extend(paths)
@@ -176,7 +177,7 @@ def test_read_table(version):
     TEST_FILES.append(path)
 
     values = np.random.randint(0, 100, size=num_values)
-    columns = ['col_' + str(i) for i in range(100)]
+    columns = [f'col_{str(i)}' for i in range(100)]
     table = pa.Table.from_arrays(values, columns)
 
     write_feather(table, path, version=version)
@@ -266,7 +267,7 @@ def test_integer_with_nulls(version):
     arrays = []
     null_mask = np.random.randint(0, 10, size=num_values) < 3
     expected_cols = []
-    for name in int_dtypes:
+    for _ in int_dtypes:
         values = np.random.randint(0, 100, size=num_values)
         arrays.append(pa.array(values, mask=null_mask))
 
@@ -403,8 +404,7 @@ def test_all_null_category(version):
 
 @pytest.mark.pandas
 def test_multithreaded_read(version):
-    data = {'c{}'.format(i): [''] * 10
-            for i in range(100)}
+    data = {f'c{i}': [''] * 10 for i in range(100)}
     df = pd.DataFrame(data)
     _check_pandas_roundtrip(df, use_threads=True, version=version)
 
@@ -519,7 +519,7 @@ def test_overwritten_file(version):
     table = pa.table({'ints': values})
     write_feather(table, path)
 
-    table = pa.table({'more_ints': values[0:num_values//2]})
+    table = pa.table({'more_ints': values[:num_values//2]})
     _check_arrow_roundtrip(table, path=path)
 
 

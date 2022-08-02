@@ -28,12 +28,7 @@ import pyarrow.tests.util as test_util
 
 here = os.path.dirname(os.path.abspath(__file__))
 test_ld_path = os.environ.get('PYARROW_TEST_LD_PATH', '')
-if os.name == 'posix':
-    compiler_opts = ['-std=c++11']
-else:
-    compiler_opts = []
-
-
+compiler_opts = ['-std=c++11'] if os.name == 'posix' else []
 setup_template = """if 1:
     from setuptools import setup
     from Cython.Build import cythonize

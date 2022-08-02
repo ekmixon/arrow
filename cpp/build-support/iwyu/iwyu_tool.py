@@ -103,20 +103,16 @@ def clang_formatter(output):
     """ Process iwyu's output into something clang-like. """
     state = (GENERAL, None)
     for line in output:
-        match = CORRECT_RE.match(line)
-        if match:
+        if match := CORRECT_RE.match(line):
             print('%s:1:1: note: #includes/fwd-decls are correct', match.groups(1))
             continue
-        match = SHOULD_ADD_RE.match(line)
-        if match:
+        if match := SHOULD_ADD_RE.match(line):
             state = (ADD, match.group(1))
             continue
-        match = SHOULD_REMOVE_RE.match(line)
-        if match:
+        if match := SHOULD_REMOVE_RE.match(line):
             state = (REMOVE, match.group(1))
             continue
-        match = FULL_LIST_RE.match(line)
-        if match:
+        if match := FULL_LIST_RE.match(line):
             state = (LIST, match.group(1))
         elif END_RE.match(line):
             state = (GENERAL, None)
@@ -154,15 +150,10 @@ def get_output(cwd, command):
 def run_iwyu(cwd, compile_command, iwyu_args, verbose, formatter):
     """ Rewrite compile_command to an IWYU command, and run it. """
     compiler, _, args = compile_command.partition(' ')
-    if compiler.endswith('cl.exe'):
-        # If the compiler name is cl.exe, let IWYU be cl-compatible
-        clang_args = ['--driver-mode=cl']
-    else:
-        clang_args = []
-
-    iwyu_args = ['-Xiwyu ' + a for a in iwyu_args]
+    clang_args = ['--driver-mode=cl'] if compiler.endswith('cl.exe') else []
+    iwyu_args = [f'-Xiwyu {a}' for a in iwyu_args]
     command = ['include-what-you-use'] + clang_args + iwyu_args
-    command = '%s %s' % (' '.join(command), args.strip())
+    command = f"{' '.join(command)} {args.strip()}"
 
     if verbose:
         print('%s:', command)
@@ -190,25 +181,18 @@ def main(compilation_db_path, source_files, verbose, formatter, iwyu_args):
     for entry in compilation_db:
         entry['file'] = os.path.realpath(entry['file'])
 
-    # Cross-reference source files with compilation database
-    source_files = [os.path.realpath(s) for s in source_files]
-    if not source_files:
-        # No source files specified, analyze entire compilation database
-        entries = compilation_db
-    else:
+    if source_files := [os.path.realpath(s) for s in source_files]:
         # Source files specified, analyze the ones appearing in compilation db,
         # warn for the rest.
         entries = []
         for source in source_files:
-            matches = [e for e in compilation_db if e['file'] == source]
-            if matches:
+            if matches := [e for e in compilation_db if e['file'] == source]:
                 entries.extend(matches)
             else:
-                print("{} not in compilation database".format(source))
-                # TODO: As long as there is no complete compilation database available this check cannot be performed
-                pass
-                #print('WARNING: \'%s\' not found in compilation database.', source)
-
+                print(f"{source} not in compilation database")
+    else:
+        # No source files specified, analyze entire compilation database
+        entries = compilation_db
     # Run analysis
     try:
         for entry in entries:
@@ -253,9 +237,15 @@ def _bootstrap():
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Print IWYU commands')
-    parser.add_argument('-o', '--output-format', type=str,
-                        choices=FORMATTERS.keys(), default=DEFAULT_FORMAT,
-                        help='Output format (default: %s)' % DEFAULT_FORMAT)
+    parser.add_argument(
+        '-o',
+        '--output-format',
+        type=str,
+        choices=FORMATTERS.keys(),
+        default=DEFAULT_FORMAT,
+        help=f'Output format (default: {DEFAULT_FORMAT})',
+    )
+
     parser.add_argument('-p', metavar='<build-path>', required=True,
                         help='Compilation database path', dest='dbpath')
     parser.add_argument('source', nargs='*',
@@ -269,6 +259,7 @@ def _bootstrap():
             return argv[:double_dash], argv[double_dash+1:]
         except ValueError:
             return argv, []
+
     argv, iwyu_args = partition_args(sys.argv[1:])
     args = parser.parse_args(argv)
 

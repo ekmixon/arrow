@@ -44,11 +44,12 @@ class Artifactory:
                     directories.append(resolved_path)
                 else:
                     files.append(resolved_path)
+
         files = []
         if not prefix.endswith('/'):
             prefix += '/'
         directories = [prefix]
-        while len(directories) > 0:
+        while directories:
             directory = directories.pop()
             traverse(directory, files, directories)
         return files
@@ -96,7 +97,7 @@ class Artifactory:
 
         dest_path = os.path.join(dest_dir, filename)
 
-        print("Downloading {} to {}".format(path, dest_path))
+        print(f"Downloading {path} to {dest_path}")
 
         url = f'{ARTIFACTORY_ROOT}/{path}'
 
@@ -108,16 +109,15 @@ class Artifactory:
                                 stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
         if proc.returncode != 0:
-            raise Exception("Downloading {} failed\nstdout: {}\nstderr: {}"
-                            .format(path, stdout, stderr))
+            raise Exception(
+                f"Downloading {path} failed\nstdout: {stdout}\nstderr: {stderr}"
+            )
 
 
 def parallel_map_terminate_early(f, iterable, num_parallel):
     tasks = []
     with cf.ProcessPoolExecutor(num_parallel) as pool:
-        for v in iterable:
-            tasks.append(pool.submit(functools.partial(f, v)))
-
+        tasks.extend(pool.submit(functools.partial(f, v)) for v in iterable)
         for task in cf.as_completed(tasks):
             if task.exception() is not None:
                 e = task.exception()
@@ -153,9 +153,8 @@ def download_rc_binaries(version, rc_number, re_match=None, dest=None,
 
             def is_old_release(path):
                 match = version_pattern.search(path)
-                if not match:
-                    return False
-                return match[0] != version
+                return match[0] != version if match else False
+
             files = [x for x in files if not is_old_release(x)]
         artifactory.download_files(files, re_match=re_match, dest=dest,
                                    num_parallel=num_parallel)

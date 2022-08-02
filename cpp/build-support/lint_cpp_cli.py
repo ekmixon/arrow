@@ -39,10 +39,7 @@ def _paths(paths):
 
 def _strip_comments(line):
     m = _STRIP_COMMENT_REGEX.match(line)
-    if not m:
-        return line
-    else:
-        return m.group(0)
+    return m.group(0) if m else line
 
 
 def lint_file(path):
@@ -69,7 +66,7 @@ def lint_file(path):
         for i, line in enumerate(f):
             stripped_line = _strip_comments(line)
             for rule, why, rule_exclusions in fail_rules:
-                if any([True for excl in rule_exclusions if excl in path]):
+                if any(True for excl in rule_exclusions if excl in path):
                     continue
 
                 if rule(stripped_line):
@@ -97,26 +94,19 @@ def lint_files():
         for filename in filenames:
             full_path = os.path.join(dirpath, filename)
 
-            exclude = False
-            for exclusion in EXCLUSIONS:
-                if exclusion in full_path:
-                    exclude = True
-                    break
-
+            exclude = any(exclusion in full_path for exclusion in EXCLUSIONS)
             if exclude:
                 continue
 
             # Lint file name, except for pkg-config templates
-            if not filename.endswith('.pc.in'):
-                if '-' in filename:
-                    why = ("Please use underscores, not hyphens, "
-                           "in source file names")
-                    yield full_path, why, 0, full_path
+            if not filename.endswith('.pc.in') and '-' in filename:
+                why = ("Please use underscores, not hyphens, "
+                       "in source file names")
+                yield full_path, why, 0, full_path
 
             # Only run on header files
             if filename.endswith('.h'):
-                for _ in lint_file(full_path):
-                    yield _
+                yield from lint_file(full_path)
 
 
 if __name__ == '__main__':

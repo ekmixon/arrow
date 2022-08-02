@@ -44,21 +44,22 @@ class GoogleBenchmarkCommand(Command):
     def list_benchmarks(self):
         argv = ["--benchmark_list_tests"]
         if self.benchmark_filter:
-            argv.append("--benchmark_filter={}".format(self.benchmark_filter))
+            argv.append(f"--benchmark_filter={self.benchmark_filter}")
         result = self.run(*argv, stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE)
         return str.splitlines(result.stdout.decode("utf-8"))
 
     def results(self, repetitions=1):
         with NamedTemporaryFile() as out:
-            argv = ["--benchmark_repetitions={}".format(repetitions),
-                    "--benchmark_out={}".format(out.name),
-                    "--benchmark_out_format=json"]
+            argv = [
+                f"--benchmark_repetitions={repetitions}",
+                f"--benchmark_out={out.name}",
+                "--benchmark_out_format=json",
+            ]
+
 
             if self.benchmark_filter:
-                argv.append(
-                    "--benchmark_filter={}".format(self.benchmark_filter)
-                )
+                argv.append(f"--benchmark_filter={self.benchmark_filter}")
 
             self.run(*argv, check=True)
             return json.load(out)
@@ -162,7 +163,7 @@ class GoogleBenchmark(Benchmark):
                          counters)
 
     def __repr__(self):
-        return "GoogleBenchmark[name={},runs={}]".format(self.names, self.runs)
+        return f"GoogleBenchmark[name={self.names},runs={self.runs}]"
 
     @classmethod
     def from_json(cls, payload):

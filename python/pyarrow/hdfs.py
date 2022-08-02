@@ -141,7 +141,7 @@ def _maybe_set_hadoop_classpath():
         if sys.platform != 'win32':
             classpath = _derive_hadoop_classpath()
         else:
-            hadoop_bin = '{}/bin/hadoop'.format(os.environ['HADOOP_HOME'])
+            hadoop_bin = f"{os.environ['HADOOP_HOME']}/bin/hadoop"
             classpath = _hadoop_classpath_glob(hadoop_bin)
     else:
         classpath = _hadoop_classpath_glob('hadoop')
@@ -162,7 +162,7 @@ def _derive_hadoop_classpath():
     hadoop_conf = os.environ["HADOOP_CONF_DIR"] \
         if "HADOOP_CONF_DIR" in os.environ \
         else os.environ["HADOOP_HOME"] + "/etc/hadoop"
-    return (hadoop_conf + ":").encode("utf-8") + jars
+    return f"{hadoop_conf}:".encode("utf-8") + jars
 
 
 def _hadoop_classpath_glob(hadoop_bin):

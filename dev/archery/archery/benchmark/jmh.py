@@ -58,32 +58,32 @@ class JavaMicrobenchmarkHarnessCommand(Command):
     def list_benchmarks(self):
         argv = []
         if self.benchmark_filter:
-            argv.append("-Dbenchmark.filter={}".format(self.benchmark_filter))
+            argv.append(f"-Dbenchmark.filter={self.benchmark_filter}")
         result = self.build.list(
             *argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         lists = []
         benchmarks = False
         for line in str.splitlines(result.stdout.decode("utf-8")):
-            if not benchmarks:
-                if line.startswith("Benchmarks:"):
-                    benchmarks = True
-            else:
+            if benchmarks:
                 if line.startswith("org.apache.arrow"):
                     lists.append(line)
                 if line.startswith("[INFO]"):
                     break
+            elif line.startswith("Benchmarks:"):
+                benchmarks = True
         return lists
 
     def results(self, repetitions):
         with NamedTemporaryFile(suffix=".json") as out:
-            argv = ["-Dbenchmark.runs={}".format(repetitions),
-                    "-Dbenchmark.resultfile={}".format(out.name),
-                    "-Dbenchmark.resultformat=json"]
+            argv = [
+                f"-Dbenchmark.runs={repetitions}",
+                f"-Dbenchmark.resultfile={out.name}",
+                "-Dbenchmark.resultformat=json",
+            ]
+
             if self.benchmark_filter:
-                argv.append(
-                    "-Dbenchmark.filter={}".format(self.benchmark_filter)
-                )
+                argv.append(f"-Dbenchmark.filter={self.benchmark_filter}")
 
             self.build.benchmark(*argv, check=True)
             return json.load(out)
@@ -111,8 +111,8 @@ class JavaMicrobenchmarkHarnessObservation:
             "measurementTime": counters["measurementTime"],
             "jvmArgs": counters["jvmArgs"]
         }
-        self.reciprocal_value = True if self.score_unit.endswith(
-            "/op") else False
+        self.reciprocal_value = bool(self.score_unit.endswith("/op"))
+
         if self.score_unit.startswith("ops/"):
             idx = self.score_unit.find("/")
             self.normalizePerSec(self.score_unit[idx+1:])
@@ -187,8 +187,7 @@ class JavaMicrobenchmarkHarness(Benchmark):
                          counters)
 
     def __repr__(self):
-        return "JavaMicrobenchmark[name={},runs={}]".format(
-            self.name, self.runs)
+        return f"JavaMicrobenchmark[name={self.name},runs={self.runs}]"
 
     @classmethod
     def from_json(cls, payload):

@@ -77,10 +77,8 @@ except ImportError:
 
 
 def _deprecate_serialization(name):
-    msg = (
-        "'pyarrow.{}' is deprecated as of 2.0.0 and will be removed in a "
-        "future version. Use pickle or the pyarrow IPC functionality instead."
-    ).format(name)
+    msg = f"'pyarrow.{name}' is deprecated as of 2.0.0 and will be removed in a future version. Use pickle or the pyarrow IPC functionality instead."
+
     warnings.warn(msg, FutureWarning, stacklevel=3)
 
 
@@ -90,42 +88,38 @@ def _deprecate_serialization(name):
 # python_to_arrow.cc)
 
 def _serialize_numpy_array_list(obj):
-    if obj.dtype.str != '|O':
-        # Make the array c_contiguous if necessary so that we can call change
-        # the view.
-        if not obj.flags.c_contiguous:
-            obj = np.ascontiguousarray(obj)
-        return obj.view('uint8'), np.lib.format.dtype_to_descr(obj.dtype)
-    else:
+    if obj.dtype.str == '|O':
         return obj.tolist(), np.lib.format.dtype_to_descr(obj.dtype)
+    # Make the array c_contiguous if necessary so that we can call change
+    # the view.
+    if not obj.flags.c_contiguous:
+        obj = np.ascontiguousarray(obj)
+    return obj.view('uint8'), np.lib.format.dtype_to_descr(obj.dtype)
 
 
 def _deserialize_numpy_array_list(data):
-    if data[1] != '|O':
-        assert data[0].dtype == np.uint8
-        return data[0].view(descr_to_dtype(data[1]))
-    else:
+    if data[1] == '|O':
         return np.array(data[0], dtype=np.dtype(data[1]))
+    assert data[0].dtype == np.uint8
+    return data[0].view(descr_to_dtype(data[1]))
 
 
 def _serialize_numpy_matrix(obj):
-    if obj.dtype.str != '|O':
-        # Make the array c_contiguous if necessary so that we can call change
-        # the view.
-        if not obj.flags.c_contiguous:
-            obj = np.ascontiguousarray(obj.A)
-        return obj.A.view('uint8'), np.lib.format.dtype_to_descr(obj.dtype)
-    else:
+    if obj.dtype.str == '|O':
         return obj.A.tolist(), np.lib.format.dtype_to_descr(obj.dtype)
+    # Make the array c_contiguous if necessary so that we can call change
+    # the view.
+    if not obj.flags.c_contiguous:
+        obj = np.ascontiguousarray(obj.A)
+    return obj.A.view('uint8'), np.lib.format.dtype_to_descr(obj.dtype)
 
 
 def _deserialize_numpy_matrix(data):
-    if data[1] != '|O':
-        assert data[0].dtype == np.uint8
-        return np.matrix(data[0].view(descr_to_dtype(data[1])),
-                         copy=False)
-    else:
+    if data[1] == '|O':
         return np.matrix(data[0], dtype=np.dtype(data[1]), copy=False)
+    assert data[0].dtype == np.uint8
+    return np.matrix(data[0].view(descr_to_dtype(data[1])),
+                     copy=False)
 
 
 # ----------------------------------------------------------------------
@@ -297,9 +291,12 @@ def register_torch_serialization_handlers(serialization_context):
                   torch.ByteTensor, torch.CharTensor, torch.ShortTensor,
                   torch.IntTensor, torch.LongTensor, torch.Tensor]:
             serialization_context.register_type(
-                t, "torch." + t.__name__,
+                t,
+                f"torch.{t.__name__}",
                 custom_serializer=_serialize_torch_tensor,
-                custom_deserializer=_deserialize_torch_tensor)
+                custom_deserializer=_deserialize_torch_tensor,
+            )
+
     except ImportError:
         # no torch
         pass

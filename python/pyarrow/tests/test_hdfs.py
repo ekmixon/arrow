@@ -79,7 +79,7 @@ class HdfsTestCases:
     def setUpClass(cls):
         cls.check_driver()
         cls.hdfs = hdfs_test_client()
-        cls.tmp_path = '/tmp/pyarrow-test-{}'.format(random.randint(0, 1000))
+        cls.tmp_path = f'/tmp/pyarrow-test-{random.randint(0, 1000)}'
         cls.hdfs.mkdir(cls.tmp_path)
 
     @classmethod
@@ -295,7 +295,7 @@ class HdfsTestCases:
             # Hack so that we don't have a dtype cast in v1 files
             df['uint32'] = df['uint32'].astype(np.int64)
 
-            path = pjoin(tmpdir, '{}.parquet'.format(i))
+            path = pjoin(tmpdir, f'{i}.parquet')
 
             table = pa.Table.from_pandas(df, preserve_index=False)
             with self.hdfs.open(path, 'wb') as f:
@@ -303,14 +303,13 @@ class HdfsTestCases:
 
             test_data.append(table)
 
-        expected = pa.concat_tables(test_data)
-        return expected
+        return pa.concat_tables(test_data)
 
     @pytest.mark.pandas
     @pytest.mark.parquet
     def test_read_multiple_parquet_files(self):
 
-        tmpdir = pjoin(self.tmp_path, 'multi-parquet-' + guid())
+        tmpdir = pjoin(self.tmp_path, f'multi-parquet-{guid()}')
 
         self.hdfs.mkdir(tmpdir)
 
@@ -327,7 +326,7 @@ class HdfsTestCases:
     def test_read_multiple_parquet_files_with_uri(self):
         import pyarrow.parquet as pq
 
-        tmpdir = pjoin(self.tmp_path, 'multi-parquet-uri-' + guid())
+        tmpdir = pjoin(self.tmp_path, f'multi-parquet-uri-{guid()}')
 
         self.hdfs.mkdir(tmpdir)
 
@@ -345,7 +344,7 @@ class HdfsTestCases:
     def test_read_write_parquet_files_with_uri(self):
         import pyarrow.parquet as pq
 
-        tmpdir = pjoin(self.tmp_path, 'uri-parquet-' + guid())
+        tmpdir = pjoin(self.tmp_path, f'uri-parquet-{guid()}')
         self.hdfs.mkdir(tmpdir)
         path = _get_hdfs_uri(pjoin(tmpdir, 'test.parquet'))
 
@@ -366,14 +365,14 @@ class HdfsTestCases:
     @pytest.mark.parquet
     @pytest.mark.pandas
     def test_read_common_metadata_files(self):
-        tmpdir = pjoin(self.tmp_path, 'common-metadata-' + guid())
+        tmpdir = pjoin(self.tmp_path, f'common-metadata-{guid()}')
         self.hdfs.mkdir(tmpdir)
         _test_read_common_metadata_files(self.hdfs, tmpdir)
 
     @pytest.mark.parquet
     @pytest.mark.pandas
     def test_write_to_dataset_with_partitions(self):
-        tmpdir = pjoin(self.tmp_path, 'write-partitions-' + guid())
+        tmpdir = pjoin(self.tmp_path, f'write-partitions-{guid()}')
         self.hdfs.mkdir(tmpdir)
         _test_write_to_dataset_with_partitions(
             tmpdir, filesystem=self.hdfs)
@@ -381,7 +380,7 @@ class HdfsTestCases:
     @pytest.mark.parquet
     @pytest.mark.pandas
     def test_write_to_dataset_no_partitions(self):
-        tmpdir = pjoin(self.tmp_path, 'write-no_partitions-' + guid())
+        tmpdir = pjoin(self.tmp_path, f'write-no_partitions-{guid()}')
         self.hdfs.mkdir(tmpdir)
         _test_write_to_dataset_no_partitions(
             tmpdir, filesystem=self.hdfs)
@@ -410,9 +409,7 @@ def _get_hdfs_uri(path):
     except ValueError:
         raise ValueError('Env variable ARROW_HDFS_TEST_PORT was not '
                          'an integer')
-    uri = "hdfs://{}:{}{}".format(host, port, path)
-
-    return uri
+    return f"hdfs://{host}:{port}{path}"
 
 
 @pytest.mark.hdfs

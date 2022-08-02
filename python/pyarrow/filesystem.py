@@ -353,10 +353,7 @@ class DaskFileSystem(FileSystem):
     @implements(FileSystem.mkdir)
     def mkdir(self, path, create_parents=True):
         path = _stringify_path(path)
-        if create_parents:
-            return self.fs.mkdirs(path)
-        else:
-            return self.fs.mkdir(path)
+        return self.fs.mkdirs(path) if create_parents else self.fs.mkdir(path)
 
     @implements(FileSystem.open)
     def open(self, path, mode='rb'):
@@ -385,10 +382,7 @@ class S3FSWrapper(DaskFileSystem):
         path = _sanitize_s3(_stringify_path(path))
         try:
             contents = self.fs.ls(path)
-            if len(contents) == 1 and contents[0] == path:
-                return False
-            else:
-                return True
+            return len(contents) != 1 or contents[0] != path
         except OSError:
             return False
 
@@ -416,9 +410,7 @@ class S3FSWrapper(DaskFileSystem):
             path = key['Key']
             if key['StorageClass'] == 'DIRECTORY':
                 directories.add(path)
-            elif key['StorageClass'] == 'BUCKET':
-                pass
-            else:
+            elif key['StorageClass'] != 'BUCKET':
                 files.add(path)
 
         # s3fs creates duplicate 'DIRECTORY' entries
@@ -434,29 +426,23 @@ class S3FSWrapper(DaskFileSystem):
 
 
 def _sanitize_s3(path):
-    if path.startswith('s3://'):
-        return path.replace('s3://', '')
-    else:
-        return path
+    return path.replace('s3://', '') if path.startswith('s3://') else path
 
 
 def _ensure_filesystem(fs):
     fs_type = type(fs)
 
-    # If the arrow filesystem was subclassed, assume it supports the full
-    # interface and return it
-    if not issubclass(fs_type, FileSystem):
-        if "fsspec" in sys.modules:
-            fsspec = sys.modules["fsspec"]
-            if isinstance(fs, fsspec.AbstractFileSystem):
-                # for recent fsspec versions that stop inheriting from
-                # pyarrow.filesystem.FileSystem, still allow fsspec
-                # filesystems (which should be compatible with our legacy fs)
-                return fs
-
-        raise OSError('Unrecognized filesystem: {}'.format(fs_type))
-    else:
+    if issubclass(fs_type, FileSystem):
         return fs
+    if "fsspec" in sys.modules:
+        fsspec = sys.modules["fsspec"]
+        if isinstance(fs, fsspec.AbstractFileSystem):
+            # for recent fsspec versions that stop inheriting from
+            # pyarrow.filesystem.FileSystem, still allow fsspec
+            # filesystems (which should be compatible with our legacy fs)
+            return fs
+
+    raise OSError(f'Unrecognized filesystem: {fs_type}')
 
 
 def resolve_filesystem_and_path(where, filesystem=None):
@@ -486,14 +472,11 @@ def resolve_filesystem_and_path(where, filesystem=None):
     path = _stringify_path(where)
 
     parsed_uri = urllib.parse.urlparse(path)
-    if parsed_uri.scheme == 'hdfs' or parsed_uri.scheme == 'viewfs':
+    if parsed_uri.scheme in ['hdfs', 'viewfs']:
         # Input is hdfs URI such as hdfs://host:port/myfile.parquet
         netloc_split = parsed_uri.netloc.split(':')
         host = netloc_split[0]
-        if host == '':
-            host = 'default'
-        else:
-            host = parsed_uri.scheme + "://" + host
+        host = 'default' if host == '' else f"{parsed_uri.scheme}://{host}"
         port = 0
         if len(netloc_split) == 2 and netloc_split[1].isnumeric():
             port = int(netloc_split[1])

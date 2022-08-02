@@ -31,10 +31,12 @@ def generate_chunks(total_size, nchunks, ncols, dtype=np.dtype('int64')):
         return np.frombuffer(common.get_random_bytes(
             rowsize, seed=col + 997 * chunk)).view(dtype)
 
-    return [pd.DataFrame({
-            'c' + str(col): make_column(col, chunk)
-            for col in range(ncols)})
-            for chunk in range(nchunks)]
+    return [
+        pd.DataFrame(
+            {f'c{str(col)}': make_column(col, chunk) for col in range(ncols)}
+        )
+        for chunk in range(nchunks)
+    ]
 
 
 class StreamReader(object):

@@ -92,15 +92,14 @@ def _from_jvm_int_type(jvm_type):
             return pa.int32()
         elif bit_width == 64:
             return pa.int64()
-    else:
-        if bit_width == 8:
-            return pa.uint8()
-        elif bit_width == 16:
-            return pa.uint16()
-        elif bit_width == 32:
-            return pa.uint32()
-        elif bit_width == 64:
-            return pa.uint64()
+    elif bit_width == 8:
+        return pa.uint8()
+    elif bit_width == 16:
+        return pa.uint16()
+    elif bit_width == 32:
+        return pa.uint32()
+    elif bit_width == 64:
+        return pa.uint64()
 
 
 def _from_jvm_float_type(jvm_type):
@@ -213,39 +212,37 @@ def field(jvm_field):
     jvm_type = jvm_field.getType()
 
     typ = None
-    if not jvm_type.isComplex():
-        type_str = jvm_type.getTypeID().toString()
-        if type_str == 'Null':
-            typ = pa.null()
-        elif type_str == 'Int':
-            typ = _from_jvm_int_type(jvm_type)
-        elif type_str == 'FloatingPoint':
-            typ = _from_jvm_float_type(jvm_type)
-        elif type_str == 'Utf8':
-            typ = pa.string()
-        elif type_str == 'Binary':
-            typ = pa.binary()
-        elif type_str == 'FixedSizeBinary':
-            typ = pa.binary(jvm_type.getByteWidth())
-        elif type_str == 'Bool':
-            typ = pa.bool_()
-        elif type_str == 'Time':
-            typ = _from_jvm_time_type(jvm_type)
-        elif type_str == 'Timestamp':
-            typ = _from_jvm_timestamp_type(jvm_type)
-        elif type_str == 'Date':
-            typ = _from_jvm_date_type(jvm_type)
-        elif type_str == 'Decimal':
-            typ = pa.decimal128(jvm_type.getPrecision(), jvm_type.getScale())
-        else:
-            raise NotImplementedError(
-                "Unsupported JVM type: {}".format(type_str))
-    else:
+    if jvm_type.isComplex():
         # TODO: The following JVM types are not implemented:
         #       Struct, List, FixedSizeList, Union, Dictionary
         raise NotImplementedError(
             "JVM field conversion only implemented for primitive types.")
 
+    type_str = jvm_type.getTypeID().toString()
+    if type_str == 'Null':
+        typ = pa.null()
+    elif type_str == 'Int':
+        typ = _from_jvm_int_type(jvm_type)
+    elif type_str == 'FloatingPoint':
+        typ = _from_jvm_float_type(jvm_type)
+    elif type_str == 'Utf8':
+        typ = pa.string()
+    elif type_str == 'Binary':
+        typ = pa.binary()
+    elif type_str == 'FixedSizeBinary':
+        typ = pa.binary(jvm_type.getByteWidth())
+    elif type_str == 'Bool':
+        typ = pa.bool_()
+    elif type_str == 'Time':
+        typ = _from_jvm_time_type(jvm_type)
+    elif type_str == 'Timestamp':
+        typ = _from_jvm_timestamp_type(jvm_type)
+    elif type_str == 'Date':
+        typ = _from_jvm_date_type(jvm_type)
+    elif type_str == 'Decimal':
+        typ = pa.decimal128(jvm_type.getPrecision(), jvm_type.getScale())
+    else:
+        raise NotImplementedError(f"Unsupported JVM type: {type_str}")
     nullable = jvm_field.isNullable()
     jvm_metadata = jvm_field.getMetadata()
     if jvm_metadata.isEmpty():
@@ -295,14 +292,15 @@ def array(jvm_array):
     if jvm_array.getField().getType().isComplex():
         minor_type_str = jvm_array.getMinorType().toString()
         raise NotImplementedError(
-            "Cannot convert JVM Arrow array of type {},"
-            " complex types not yet implemented.".format(minor_type_str))
+            f"Cannot convert JVM Arrow array of type {minor_type_str}, complex types not yet implemented."
+        )
+
     dtype = field(jvm_array.getField()).type
     buffers = [jvm_buffer(buf)
                for buf in list(jvm_array.getBuffers(False))]
 
     # If JVM has an empty Vector, buffer list will be empty so create manually
-    if len(buffers) == 0:
+    if not buffers:
         return pa.array([], type=dtype)
 
     length = jvm_array.getValueCount()
@@ -324,9 +322,10 @@ def record_batch(jvm_vector_schema_root):
     """
     pa_schema = schema(jvm_vector_schema_root.getSchema())
 
-    arrays = []
-    for name in pa_schema.names:
-        arrays.append(array(jvm_vector_schema_root.getVector(name)))
+    arrays = [
+        array(jvm_vector_schema_root.getVector(name))
+        for name in pa_schema.names
+    ]
 
     return pa.RecordBatch.from_arrays(
         arrays,
